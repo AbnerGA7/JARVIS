@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 """
-Cerebro de J.A.R.V.I.S. — IA local y gratuita con Ollama.
+Cerebro de J.A.R.V.I.S. — IA en la nube con Groq (gratis y ultrarrápida) u Ollama local.
 Personalidad + catálogo de acciones + ejemplos de entrenamiento + memoria a largo plazo.
 """
 import os, re, json, time, shutil, base64, subprocess
@@ -8,6 +8,17 @@ import requests
 from config import log, SIN_VENTANA, cargar_entrenamiento
 
 OLLAMA = "http://127.0.0.1:11434"
+GROQ = "https://api.groq.com/openai/v1"
+GROQ_PRINCIPAL = "llama-3.3-70b-versatile"   # el más listo del plan gratis
+GROQ_RESPALDO = "llama-3.1-8b-instant"       # súper rápido y con límite diario mucho más alto
+
+# En la nube cada palabra cuenta para el límite gratis: se envían solo los ejemplos más didácticos
+EJEMPLOS_NUBE = {
+    "abre spotify y pon música de queen", "cierra chrome y abre youtube en edge", "cómo está el clima",
+    "recuérdame en 20 minutos sacar la ropa de la lavadora", "anota que tengo que comprar pan y leche",
+    "quién fue nikola tesla", "mándale un whatsapp a mamá diciendo que ya voy",
+    "cuando te diga modo cine pausa todo, baja el brillo y abre netflix", "busca el archivo del informe de historia",
+}
 
 ACCIONES = """\
 APPS Y WEB
@@ -86,20 +97,28 @@ class Cerebro:
         self.cfg = cfg
         self.memoria = memoria
         self.modelo = None
+        self.motor = None            # "groq" (nube) u "ollama" (local)
+        self.respaldo_hasta = 0.0    # mientras sea futuro, se usa el modelo de respaldo de Groq
         self.historial = []
         self.ejemplos = []
+        self.ejemplos_nube = []
         self.recargar_entrenamiento()
 
     # ------------------------------------------------------------ preparación
     def recargar_entrenamiento(self):
-        msgs = []
-        for e in cargar_entrenamiento():
+        msgs, nube = [], []
+        todos = cargar_entrenamiento()
+        for i, e in enumerate(todos):
             try:
-                msgs.append({"role": "user", "content": e["usuario"]})
-                msgs.append({"role": "assistant", "content": json.dumps(e["jarvis"], ensure_ascii=False)})
+                par = [{"role": "user", "content": e["usuario"]},
+                       {"role": "assistant", "content": json.dumps(e["jarvis"], ensure_ascii=False)}]
             except Exception:
-                pass
+                continue
+            msgs += par
+            if e["usuario"] in EJEMPLOS_NUBE or e.get("propio") or e["usuario"].startswith("RESULTADOS"):
+                nube += par
         self.ejemplos = msgs
+        self.ejemplos_nube = nube
 
     def sistema(self):
         quien = self.cfg.get("nombre_usuario") or "tu usuario"
@@ -194,11 +213,87 @@ class Cerebro:
             progreso(None, "")
         return False
 
+    # ------------------------------------------------------------ nube (Groq)
+    def clave_groq(self):
+        return (self.cfg.get("groq_api_key") or os.environ.get("GROQ_API_KEY") or "").strip()
+
+    def usar_nube(self):
+        return self.cfg.get("proveedor", "groq") == "groq"
+
+    @staticmethod
+    def probar_groq(clave):
+        """Comprueba una clave. Devuelve (ok, mensaje)."""
+        clave = (clave or "").strip()
+        if not clave.startswith("gsk_"):
+            return False, "Las claves de Groq empiezan con gsk_"
+        try:
+            r = requests.get(GROQ + "/models", headers={"Authorization": f"Bearer {clave}"}, timeout=10)
+            if r.status_code == 200:
+                return True, "Clave válida"
+            if r.status_code in (401, 403):
+                return False, "Groq rechazó la clave. Cópiala de nuevo"
+            return False, f"Groq respondió {r.status_code}. Intenta en un momento"
+        except requests.RequestException:
+            return False, "Sin conexión con Groq. Revisa tu internet"
+
+    def preparar_nube(self):
+        """Activa Groq si hay una clave válida. Devuelve (ok, mensaje)."""
+        ok, msg = self.probar_groq(self.clave_groq())
+        if ok:
+            self.motor = "groq"
+            self.modelo = self.cfg.get("modelo_groq") or GROQ_PRINCIPAL
+            log.info("Cerebro en la nube listo: Groq %s", self.modelo)
+        return ok, msg
+
+    def _modelo_groq_actual(self):
+        if time.time() < self.respaldo_hasta:
+            return self.cfg.get("modelo_groq_respaldo") or GROQ_RESPALDO
+        return self.cfg.get("modelo_groq") or GROQ_PRINCIPAL
+
+    def _chat_groq(self, mensajes):
+        """Llama a Groq. Si el modelo principal llega a su límite, cambia solo al de respaldo."""
+        principal = self.cfg.get("modelo_groq") or GROQ_PRINCIPAL
+        respaldo = self.cfg.get("modelo_groq_respaldo") or GROQ_RESPALDO
+        cabeceras = {"Authorization": f"Bearer {self.clave_groq()}"}
+        modelo = self._modelo_groq_actual()
+        for intento in range(3):
+            cuerpo = {"model": modelo, "messages": mensajes, "temperature": float(self.cfg.get("temperatura", 0.4)),
+                      "max_tokens": 600, "response_format": {"type": "json_object"}}
+            r = requests.post(GROQ + "/chat/completions", json=cuerpo, headers=cabeceras, timeout=30)
+            if r.status_code == 200:
+                return r.json()["choices"][0]["message"]["content"]
+            if r.status_code == 429:
+                espera = _segundos(r.headers.get("retry-after"))
+                if modelo != respaldo:
+                    log.warning("Groq: %s llegó a su límite, uso %s por un rato", modelo, respaldo)
+                    self.respaldo_hasta = time.time() + max(espera, 120)
+                    modelo = respaldo
+                    continue
+                if espera <= 8:
+                    time.sleep(espera or 2)
+                    continue
+                raise LimiteNube(espera)
+            if r.status_code == 400 and "json" in r.text.lower():
+                # el modelo devolvió algo que no es JSON: se pide sin modo JSON y se interpreta igual
+                cuerpo.pop("response_format")
+                r2 = requests.post(GROQ + "/chat/completions", json=cuerpo, headers=cabeceras, timeout=30)
+                if r2.status_code == 200:
+                    return r2.json()["choices"][0]["message"]["content"]
+            if r.status_code in (401, 403):
+                raise ClaveInvalida()
+            if r.status_code >= 500 and intento < 2:
+                time.sleep(1.5)
+                continue
+            r.raise_for_status()
+        raise LimiteNube(60)
+
     # ------------------------------------------------------------ pensar
     def pensar(self, orden, contexto="", resultados=None):
         """Devuelve {"respuesta": str, "acciones": [dict]}"""
+        trato = self.cfg.get("trato", "señor")
         if not self.modelo:
-            return {"respuesta": "Mi núcleo de inteligencia no está disponible. Revise que Ollama esté instalado, " + self.cfg.get("trato", "señor") + ".", "acciones": []}
+            return {"respuesta": f"Mi núcleo de inteligencia no está conectado, {trato}. Revise la clave de Groq en mi configuración.",
+                    "acciones": []}
         if resultados is None:
             contenido = (f"[{contexto}]\n" if contexto else "") + orden
             self.historial.append({"role": "user", "content": orden})
@@ -206,21 +301,30 @@ class Cerebro:
             contenido = ("RESULTADOS de las acciones (úsalos para responder ahora al usuario, de forma natural y breve; "
                          "no repitas la consulta):\n" + resultados)
             self.historial.append({"role": "user", "content": contenido})
-        mensajes = [{"role": "system", "content": self.sistema()}] + self.ejemplos + self.historial[-14:-1] + [
+        nube = self.motor == "groq"
+        ejemplos = self.ejemplos_nube if nube else self.ejemplos
+        previos = self.historial[-(9 if nube else 14):-1]
+        mensajes = [{"role": "system", "content": self.sistema()}] + ejemplos + previos + [
             {"role": "user", "content": contenido}]
-        cuerpo = {"model": self.modelo, "messages": mensajes, "format": "json", "stream": False,
-                  "keep_alive": "60m",
-                  "options": {"temperature": float(self.cfg.get("temperatura", 0.4)), "num_ctx": 8192}}
-        if self.modelo.startswith(("qwen3", "deepseek-r1")):
-            cuerpo["think"] = False
         try:
-            r = requests.post(OLLAMA + "/api/chat", json=cuerpo, timeout=180)
-            r.raise_for_status()
-            texto = r.json()["message"]["content"]
+            texto = self._chat_groq(mensajes) if nube else self._chat_ollama(mensajes)
             plan = interpretar(texto)
+        except LimiteNube as e:
+            minutos = max(1, round(e.segundos / 60))
+            plan = {"respuesta": f"Alcancé el límite gratuito de mi núcleo en la nube por ahora, {trato}. "
+                                 f"Vuelvo a estar al cien por ciento en unos {minutos} minutos; mientras tanto "
+                                 "puedo abrir programas, controlar el volumen y la música.", "acciones": []}
+        except ClaveInvalida:
+            plan = {"respuesta": f"Groq rechazó mi clave de acceso, {trato}. Revísela en mi configuración.", "acciones": []}
         except requests.ConnectionError:
-            plan = {"respuesta": "Perdí la conexión con mi núcleo de inteligencia. Intentaré reconectar.", "acciones": []}
-            threading_encender(self)
+            if nube:
+                plan = {"respuesta": f"No logro conectar con mi núcleo en la nube, {trato}. Revise su conexión a internet.",
+                        "acciones": []}
+            else:
+                plan = {"respuesta": "Perdí la conexión con mi núcleo de inteligencia. Intentaré reconectar.", "acciones": []}
+                threading_encender(self)
+        except requests.Timeout:
+            plan = {"respuesta": f"Mi núcleo tardó demasiado en responder, {trato}. ¿Lo intentamos de nuevo?", "acciones": []}
         except Exception as e:
             log.error("Error del cerebro: %s", e)
             plan = {"respuesta": "Disculpe, tuve un fallo procesando eso.", "acciones": []}
@@ -228,9 +332,21 @@ class Cerebro:
         self.historial = self.historial[-30:]
         return plan
 
+    def _chat_ollama(self, mensajes):
+        cuerpo = {"model": self.modelo, "messages": mensajes, "format": "json", "stream": False,
+                  "keep_alive": "60m",
+                  "options": {"temperature": float(self.cfg.get("temperatura", 0.4)), "num_ctx": 8192}}
+        if self.modelo.startswith(("qwen3", "deepseek-r1")):
+            cuerpo["think"] = False
+        r = requests.post(OLLAMA + "/api/chat", json=cuerpo, timeout=180)
+        r.raise_for_status()
+        return r.json()["message"]["content"]
+
     def ver(self, imagen_png, pregunta):
         """Analiza una imagen con el modelo de visión (si está instalado)."""
         modelo = self.cfg.get("modelo_vision", "moondream")
+        if self.motor == "groq" and not self.en_linea():
+            return None
         if not any(m.split(":")[0] == modelo.split(":")[0] for m in self.modelos_instalados()):
             return None
         img = base64.b64encode(open(imagen_png, "rb").read()).decode()
@@ -247,6 +363,23 @@ class Cerebro:
 
 
 # ---------------------------------------------------------------- utilidades
+class LimiteNube(Exception):
+    def __init__(self, segundos=60):
+        super().__init__(f"límite de Groq ({segundos}s)")
+        self.segundos = segundos
+
+
+class ClaveInvalida(Exception):
+    pass
+
+
+def _segundos(valor):
+    try:
+        return float(valor)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def interpretar(texto):
     """Convierte la salida del modelo en un plan válido, aunque venga algo desordenada."""
     datos = None
