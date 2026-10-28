@@ -1,0 +1,17 @@
+numpy
+requests
+sounddevice
+SpeechRecognition
+pygame-ce
+edge-tts
+pyttsx3
+pyautogui
+pyperclip
+psutil
+pycaw
+comtypes
+screen-brightness-control
+pystray
+pillow
+keyboard
+ddgs
