@@ -129,6 +129,7 @@ class Jarvis:
             log.error("Sin micrófono: %s", e)
         try:
             self.voz = Voz(self.cfg, self.oido, al_nivel=lambda n: setattr(self.hud, "nivel_voz", n))
+            self.voz.al_cambiar_voz = lambda aviso: (self.hud.registrar("ALERTA", aviso), notificar("JARVIS · Voz", aviso))
         except Exception as e:
             log.error("Sin voz: %s", e)
         self.bandeja = iniciar_bandeja(ICONO, self.opciones)
