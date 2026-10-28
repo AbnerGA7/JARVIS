@@ -8,6 +8,7 @@ Cada acción devuelve (clase, texto):
   "salir"   -> apagar a Jarvis
 """
 import os, re, ast, json, math, time, uuid, difflib, datetime, threading, subprocess, webbrowser, urllib.parse, xml.etree.ElementTree as ET
+from html.parser import HTMLParser
 import requests
 from config import log, normalizar, SIN_VENTANA, ES_WINDOWS, DATOS
 
@@ -52,6 +53,79 @@ TECLAS = {"control": "ctrl", "mayusculas": "shift", "mayus": "shift", "windows":
 PELIGRO = re.compile(r"remove-item|\brm\b|\bdel\b|\berase\b|rmdir|\brd\b|format|clear-disk|stop-computer|"
                      r"restart-computer|set-executionpolicy|\breg\b|remove-|uninstall|diskpart|bcdedit|cipher|"
                      r"takeown|icacls|vssadmin|net user|disable-|stop-service|kill|taskkill", re.I)
+
+
+def ventana_activa():
+    """Título de la ventana que tienes al frente."""
+    if not ES_WINDOWS:
+        return ""
+    try:
+        import ctypes
+        u = ctypes.windll.user32
+        h = u.GetForegroundWindow()
+        n = u.GetWindowTextLengthW(h)
+        buf = ctypes.create_unicode_buffer(n + 1)
+        u.GetWindowTextW(h, buf, n + 1)
+        return buf.value
+    except Exception:
+        return ""
+
+
+NAVEGADORES = ("chrome", "edge", "firefox", "opera", "brave", "vivaldi", "navegador")
+
+
+class _LectorHTML(HTMLParser):
+    """Saca el texto legible de una página (sin menús, scripts ni publicidad)."""
+    SALTAR = {"script", "style", "noscript", "svg", "nav", "footer", "header", "aside", "form", "button", "iframe", "template"}
+    BLOQUES = {"p", "h1", "h2", "h3", "h4", "li", "tr", "br", "div", "section", "article", "blockquote", "pre"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.saltando = 0
+        self.en_principal = 0
+        self.titulo, self._en_titulo = "", False
+        self.todo, self.principal = [], []
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.SALTAR:
+            self.saltando += 1
+        elif tag in ("article", "main"):
+            self.en_principal += 1
+        elif tag == "title":
+            self._en_titulo = True
+        if tag in self.BLOQUES:
+            self.todo.append("\n")
+            if self.en_principal:
+                self.principal.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in self.SALTAR and self.saltando:
+            self.saltando -= 1
+        elif tag in ("article", "main") and self.en_principal:
+            self.en_principal -= 1
+        elif tag == "title":
+            self._en_titulo = False
+
+    def handle_data(self, data):
+        if self._en_titulo:
+            self.titulo += data
+        elif not self.saltando and data.strip():
+            self.todo.append(data)
+            if self.en_principal:
+                self.principal.append(data)
+
+
+def texto_de_html(html):
+    lector = _LectorHTML()
+    try:
+        lector.feed(html)
+    except Exception:
+        pass
+    partes = lector.principal if len("".join(lector.principal)) > 400 else lector.todo
+    texto = re.sub(r"[ \t\r\f\v]+", " ", "".join(partes))
+    lineas = [l.strip() for l in texto.split("\n")]
+    texto = "\n".join(l for l in lineas if len(l) > 2)
+    return " ".join(lector.titulo.split()), texto
 
 
 def _carpeta_usuario(*partes):
@@ -747,21 +821,88 @@ class Habilidades:
 
     # ------------------------------------------------------------ memoria y aprendizaje
     def h_recordar_dato(self, v, a):
-        mem = self.n.alm_memoria
-        if v and v not in mem.datos:
-            mem.datos.append(v)
-            mem.datos[:] = mem.datos[-60:]
-            mem.guardar()
+        if v:
+            self.n.memoria.aprender(v, str(a.get("tipo") or "dato").lower(), "me lo pidió")
 
     def h_olvidar_dato(self, v, a):
-        mem = self.n.alm_memoria
-        n = normalizar(v)
-        antes = len(mem.datos)
-        mem.datos[:] = [d for d in mem.datos if not (n and (n in normalizar(d) or
-                        difflib.SequenceMatcher(None, n, normalizar(d)).ratio() > 0.6))]
-        mem.guardar()
-        if antes == len(mem.datos):
+        if not self.n.memoria.olvidar(v):
             return ("decir", "No tenía ese dato en mi memoria.")
+
+    def h_lo_aprendido(self, v, a):
+        m = self.n.memoria
+        est = m.estadisticas()
+        partes = [f"[lo_aprendido] En mi base de datos: {est['conocimiento']} cosas sobre el usuario, {est['ordenes']} órdenes "
+                  f"que aprendí solo, {est['lecciones']} lecciones que le enseñé y {est['conversaciones']} conversaciones."]
+        conocimiento = m.todo_el_conocimiento()[:40]
+        if conocimiento:
+            partes.append("Lo que sé del usuario:\n" + "\n".join(f"- ({c['tipo']}) {c['texto']}" for c in conocimiento))
+        else:
+            partes.append("Todavía casi no sé nada del usuario: invítalo a contarte sobre él (gustos, estudios, rutina).")
+        patrones = m.patrones()[:12]
+        if patrones:
+            partes.append("Órdenes que ya hago al instante: " + "; ".join(f"«{p['frase']}» ({p['veces']} veces)" for p in patrones))
+        partes.append("Cuéntaselo de forma natural y cálida en pocas frases (no leas toda la lista) y ofrécele corregir algo.")
+        return ("info", "\n".join(partes))
+
+    def h_lecciones(self, v, a):
+        n = normalizar(v)
+        dias = None if n in ("todo", "todas", "siempre") else 7 if "semana" in n else 30 if "mes" in n else 1
+        lecciones = self.n.memoria.lecciones(dias, 25)
+        periodo = {None: "en total", 7: "esta semana", 30: "este mes", 1: "hoy"}[dias]
+        if not lecciones:
+            return ("info", f"[lecciones] No hay lecciones guardadas {periodo}. Díselo y ofrécele aprender algo nuevo "
+                            "sobre un tema que le guste (usa lo que sabes de él).")
+        return ("info", f"[lecciones] Lo que le enseñé {periodo}:\n" + "\n".join(
+            f"- {l['tema']}: {l['contenido']}" for l in lecciones) + "\nHaz un resumen breve y motivador.")
+
+    def h_repaso(self, v, a):
+        lecciones = self.n.memoria.para_repasar(3)
+        if not lecciones:
+            return ("info", "[repaso] Aún no hay lecciones guardadas. Ofrécele enseñarle algo interesante sobre un tema que le guste.")
+        return ("info", "[repaso] Hazle al usuario UNA sola pregunta corta sobre una de estas lecciones y espera su respuesta; "
+                        "cuando responda, dile si acertó y explícale en una frase:\n" + "\n".join(
+                            f"- {l['tema']}: {l['contenido']}" for l in lecciones))
+
+    def h_leer_pagina(self, v, a):
+        import pyperclip
+        url = (v or "").strip().strip("<>\"'")
+        n = normalizar(url)
+        if not re.match(r"^https?://", url):
+            if any(p in n for p in ("portapapeles", "copiad")):
+                url = (pyperclip.paste() or "").strip()
+            elif re.match(r"^[\w-]+(\.[\w-]+)+(/\S*)?$", url):
+                url = "https://" + url
+            else:
+                url = self._url_del_navegador() or (pyperclip.paste() or "").strip()
+        if not re.match(r"^https?://\S+$", url):
+            return ("info", "[leer_pagina] No encontré qué página leer. Pídele que la abra en el navegador o copie el enlace.")
+        r = requests.get(url, headers=UA, timeout=12)
+        r.encoding = r.apparent_encoding or r.encoding
+        titulo, texto = texto_de_html(r.text)
+        if len(texto) < 80:
+            return ("info", f"[leer_pagina] La página {url} no tiene texto legible (puede ser un video o requerir inicio de sesión).")
+        return ("info", f"[leer_pagina] {titulo or url}\n{texto[:6000]}")
+
+    def _url_del_navegador(self):
+        """Copia la dirección de la pestaña abierta (Ctrl+L, Ctrl+C) y deja tu portapapeles como estaba."""
+        if not any(n in normalizar(ventana_activa()) for n in NAVEGADORES):
+            return ""
+        import pyperclip, pyautogui
+        try:
+            anterior = pyperclip.paste()
+        except Exception:
+            anterior = ""
+        pyperclip.copy("")
+        pyautogui.hotkey("ctrl", "l")
+        time.sleep(0.15)
+        pyautogui.hotkey("ctrl", "c")
+        time.sleep(0.25)
+        pyautogui.press("esc")
+        url = (pyperclip.paste() or "").strip()
+        pyperclip.copy(anterior or "")
+        if url and not url.startswith("http") and re.match(r"^[\w-]+(\.[\w-]+)+", url):
+            url = "https://" + url
+        return url if url.startswith("http") else ""
 
     def h_aprender(self, v, a):
         frase = a.get("frase") or v
