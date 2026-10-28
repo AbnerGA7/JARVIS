@@ -36,16 +36,27 @@ class Oido:
     # ------------------------------------------------------------ micrófono
     def iniciar(self):
         import sounddevice as sd
-        try:
-            self._stream = sd.InputStream(samplerate=TASA, channels=1, dtype="int16",
-                                          blocksize=BLOQUE, callback=self._callback)
-            self._stream.start()
-            self.activo = True
-            log.info("Micrófono activo: %s", sd.query_devices(kind="input")["name"])
-        except Exception as e:
-            self.error = str(e)
-            log.error("No pude abrir el micrófono: %s", e)
-            raise
+        from audio import indice_microfono
+        dispositivo = indice_microfono(self.cfg.get("microfono", ""))
+        for intento in (dispositivo, None) if dispositivo is not None else (None,):
+            try:
+                self._stream = sd.InputStream(samplerate=TASA, channels=1, dtype="int16", device=intento,
+                                              blocksize=BLOQUE, callback=self._callback)
+                self._stream.start()
+                self.activo, self.error = True, None
+                info = sd.query_devices(intento if intento is not None else sd.default.device[0])
+                log.info("Micrófono activo: %s", info["name"])
+                return
+            except Exception as e:
+                self.error = str(e)
+                log.error("No pude abrir el micrófono %s: %s", intento, e)
+        raise RuntimeError(self.error)
+
+    def reiniciar(self):
+        """Cambia de micrófono en caliente (después de elegir otro en los ajustes)."""
+        self.detener()
+        self.activo = False
+        self.iniciar()
 
     def detener(self):
         try:
