@@ -91,3 +91,5 @@ jobs:
             - Ventana para elegir micrófono y parlantes (clic derecho en el reactor).
             - Entiende frases como "quiero que me digas la hora" al instante.
             - Enlace con la app JARVIS para Android, por WiFi o con datos móviles (clic derecho en el reactor → Conectar celular).
+            - Se inicia solo al encender la PC (desactivable desde el menú).
+            - Prueba de aplausos con sensibilidad ajustable (clic derecho → Micrófono y parlantes).
