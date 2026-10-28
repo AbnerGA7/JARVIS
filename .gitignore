@@ -6,3 +6,4 @@ salida/
 *.log
 .venv/
 venv/
+cloudflared.exe
