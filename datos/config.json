@@ -1,0 +1,91 @@
+{
+  "trato": "señor",
+  "nombre_usuario": "",
+  "palabras_activacion": ["jarvis", "yarvis", "jarbis", "jarvi", "charvis", "jervis", "harvis", "jarvas"],
+  "voz": "es-MX-JorgeNeural",
+  "velocidad_voz": "+8%",
+  "tono_voz": "-6Hz",
+  "idioma_reconocimiento": "es-PE",
+  "modelo": "auto",
+  "modelo_vision": "moondream",
+  "temperatura": 0.4,
+  "ciudad": "Lima",
+  "pais_noticias": "PE",
+  "aplausos": true,
+  "sensibilidad_aplauso": 0.35,
+  "atajo_activar": "ctrl+alt+j",
+  "atajo_callar": "ctrl+alt+s",
+  "segundos_conversacion": 7,
+  "hud_posicion": "derecha",
+  "hud_segundos_visible": 8,
+  "musica": "youtube",
+  "correo": "gmail",
+  "saludo_al_iniciar": true,
+  "sitios": {
+    "youtube": "https://youtube.com",
+    "google": "https://google.com",
+    "gmail": "https://mail.google.com",
+    "correo": "https://mail.google.com",
+    "facebook": "https://facebook.com",
+    "instagram": "https://instagram.com",
+    "tiktok": "https://tiktok.com",
+    "netflix": "https://netflix.com",
+    "twitch": "https://twitch.tv",
+    "chatgpt": "https://chatgpt.com",
+    "claude": "https://claude.ai",
+    "github": "https://github.com",
+    "twitter": "https://x.com",
+    "x": "https://x.com",
+    "whatsapp web": "https://web.whatsapp.com",
+    "maps": "https://maps.google.com",
+    "google maps": "https://maps.google.com",
+    "drive": "https://drive.google.com",
+    "traductor": "https://translate.google.com",
+    "amazon": "https://amazon.com",
+    "mercado libre": "https://mercadolibre.com.pe",
+    "classroom": "https://classroom.google.com",
+    "canva": "https://canva.com",
+    "disney": "https://disneyplus.com"
+  },
+  "alias_apps": {
+    "navegador": "chrome",
+    "bloc de notas": "notepad",
+    "notas": "notepad",
+    "calculadora": "calc",
+    "terminal": "cmd",
+    "consola": "cmd",
+    "vs code": "visual studio code",
+    "visual": "visual studio code",
+    "administrador de tareas": "taskmgr",
+    "panel de control": "control",
+    "explorador": "explorer",
+    "archivos": "explorer",
+    "paint": "mspaint",
+    "configuracion": "ms-settings:",
+    "ajustes": "ms-settings:"
+  },
+  "contactos": {
+    "ejemplo mamá": "+51999999999"
+  },
+  "rutinas": {
+    "modo gamer": [
+      {"tipo": "abrir_app", "valor": "steam"},
+      {"tipo": "abrir_app", "valor": "discord"},
+      {"tipo": "volumen", "valor": "70"}
+    ],
+    "modo estudio": [
+      {"tipo": "reproducir", "valor": "lofi hip hop para estudiar"},
+      {"tipo": "volumen", "valor": "30"},
+      {"tipo": "abrir_web", "valor": "classroom"}
+    ],
+    "modo trabajo": [
+      {"tipo": "abrir_web", "valor": "gmail"},
+      {"tipo": "abrir_app", "valor": "visual studio code"}
+    ],
+    "buenas noches": [
+      {"tipo": "media", "valor": "pausa"},
+      {"tipo": "brillo", "valor": "20"},
+      {"tipo": "volumen", "valor": "15"}
+    ]
+  }
+}
