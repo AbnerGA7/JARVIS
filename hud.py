@@ -450,11 +450,11 @@ class HUD:
         fila_sens = tk.Frame(cuerpo, bg=FONDO)
         fila_sens.pack(fill="x", pady=(6, 18))
         tk.Label(fila_sens, text="Sensibilidad", fg=tenue, bg=FONDO, font=("Segoe UI", 9)).pack(side="left")
-        # sensibilidad 1..10  <->  umbral de volumen 0.80..0.17 (más sensible = umbral más bajo)
-        sens_var = tk.DoubleVar(value=round(max(1.0, min(10.0, 1 + (0.80 - float(sensibilidad)) / 0.07)), 1))
+        # sensibilidad 1..10  <->  volumen mínimo del aplauso 0.45..0.06 (más sensible = mínimo más bajo)
+        sens_var = tk.DoubleVar(value=round(max(1.0, min(10.0, 1 + (0.45 - float(sensibilidad)) / 0.0433)), 1))
 
         def sens_cambio(_=None):
-            umbral = round(0.80 - (sens_var.get() - 1) * 0.07, 3)
+            umbral = round(0.45 - (sens_var.get() - 1) * 0.0433, 3)
             if al_sensibilidad:
                 al_sensibilidad(umbral)
         tk.Scale(fila_sens, from_=1, to=10, resolution=0.5, orient="horizontal", variable=sens_var, command=sens_cambio,

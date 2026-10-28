@@ -235,7 +235,7 @@ class Jarvis:
     # ================================================================ micrófono y parlantes
     def abrir_ajustes_audio(self):
         from audio import listar_microfonos, listar_parlantes
-        self._sensibilidad_antes = self.cfg.get("sensibilidad_aplauso", 0.35)
+        self._sensibilidad_antes = self.cfg.get("sensibilidad_aplauso", 0.18)
         self.hud.ajustes_audio(listar_microfonos(), listar_parlantes(), self.cfg.get("microfono", ""),
                                self.cfg.get("parlantes", ""), self._probar_microfono, self._probar_parlantes,
                                self._guardar_audio, self._sensibilidad_antes,
@@ -272,7 +272,7 @@ class Jarvis:
             guardar_config(self.cfg)
             self.hud.registrar("JARVIS", "Ajustes de audio guardados.")
         else:
-            self.cfg["sensibilidad_aplauso"] = getattr(self, "_sensibilidad_antes", self.cfg.get("sensibilidad_aplauso", 0.35))
+            self.cfg["sensibilidad_aplauso"] = getattr(self, "_sensibilidad_antes", self.cfg.get("sensibilidad_aplauso", 0.18))
 
     # ================================================================ actualizaciones
     def _vigilar_actualizaciones(self):
