@@ -333,9 +333,40 @@ class Habilidades:
     def h_buscar_youtube(self, v, a):
         webbrowser.open("https://www.youtube.com/results?search_query=" + urllib.parse.quote(v))
 
+    def _app_musica(self, v, a):
+        """Decide dónde suena: lo que pediste ("en Spotify"), luego tu preferencia y, en automático, Spotify si lo tienes."""
+        app = normalizar(str(a.get("app") or a.get("plataforma") or ""))
+        m = re.search(r"\s+(en|por|desde|con) (spotify|youtube)( music)?\s*$", v, re.I)
+        if m:
+            app = app or normalizar(m.group(2))
+            v = v[:m.start()].strip()
+        if "spotify" in app:
+            return "spotify", v
+        if "youtube" in app or "video" in app:
+            return "youtube", v
+        preferida = self.cfg.get("musica", "auto")
+        if preferida in ("spotify", "youtube"):
+            return preferida, v
+        import musica
+        if not musica.parece_video(v) and (musica.ventanas() or self.apps.seguro("spotify")):
+            return "spotify", v
+        return "youtube", v
+
     def h_reproducir(self, v, a):
-        if self.cfg.get("musica") == "spotify":
-            os.startfile("spotify:search:" + urllib.parse.quote(v)); return
+        app, v = self._app_musica(v, a)
+        if app == "spotify":
+            import musica
+            sonando = musica.reproducir(v)
+            if sonando:
+                return
+            if sonando == "":
+                os.startfile("spotify:search:" + urllib.parse.quote(v))
+                return ("decir", f"Abrí Spotify con los resultados de {v}, {self.trato}; no pude confirmar que empezara a sonar.")
+            self._youtube(v, a)
+            return ("decir", f"No encontré Spotify en su equipo, {self.trato}, así que lo puse en YouTube.")
+        self._youtube(v, a)
+
+    def _youtube(self, v, a):
         try:
             html = requests.get("https://www.youtube.com/results?search_query=" + urllib.parse.quote(v),
                                 headers=UA, timeout=8).text
