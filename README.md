@@ -37,7 +37,8 @@
 | 🎙️ **Activación por voz** | "Jarvis, …", doble aplauso 👏👏, `Ctrl+Alt+J` o clic en el reactor |
 | ☁️ **Cerebro en la nube** | Groq + Llama 3.3 70B: responde en menos de 1 s, gratis |
 | 🎮 **Cero impacto al jugar** | No usa GPU; JARVIS ocupa ~200 MB de RAM |
-| 🔁 **Respaldo automático** | Si se llega al límite gratis, cambia solo a Llama 3.1 8B |
+| 🔁 **Respaldo automático** | Groq grande → Groq rápido → Google Gemini, sin que lo notes |
+| 🧭 **Elige modelos solo** | Consulta qué modelos tiene tu cuenta y usa el mejor disponible |
 | 🗣️ **Voz neural** | Voces de Microsoft en español, con respaldo sin internet |
 | 💬 **Conversación continua** | Después de responder te sigue escuchando, sin repetir "Jarvis" |
 | 🖥️ **HUD holográfico** | Reactor animado que reacciona a tu voz, colores por estado |
@@ -45,7 +46,7 @@
 | 🧩 **45+ habilidades** | Apps, web, sistema, archivos, info, productividad |
 | 💾 **Memoria** | Recuerda datos tuyos para siempre |
 | 🎓 **Aprende** | Le enseñas comandos y rutinas nuevas por voz |
-| 👁️ **Visión** | "¿Qué hay en mi pantalla?" (próximamente con Gemini) |
+| 👁️ **Visión** | "¿Qué hay en mi pantalla?" con Gemini |
 | 🔒 **Seguro** | Confirma por voz antes de apagar, enviar o borrar |
 
 ## 🗣️ Ejemplos
@@ -119,8 +120,8 @@ Clic derecho en el reactor → **Configuración** (`%APPDATA%\JARVIS\config.json
 | `contactos` | `{"mamá": "+51999999999"}` |
 | `rutinas` | modo gamer, modo estudio, buenas noches… |
 | `proveedor` | `groq` (nube) u `ollama` (local, opcional) |
-| `modelo_groq` | `llama-3.3-70b-versatile` |
-| `modelo_groq_respaldo` | `llama-3.1-8b-instant` |
+| `modelo_groq` / `modelo_groq_respaldo` | `auto` (recomendado) o el id de un modelo |
+| `gemini_api_key` / `modelo_gemini` | clave de Gemini · `auto` |
 | `segundos_conversacion` | `7` (0 lo desactiva) |
 
 ## 🎓 Entrenamiento
@@ -143,7 +144,8 @@ Clic derecho en el reactor → **Configuración** (`%APPDATA%\JARVIS\config.json
 - **No me escucha:** revisa el micrófono predeterminado de Windows.
 - **Se activa solo con ruidos:** sube `sensibilidad_aplauso`.
 - **"Alcancé el límite gratuito":** el plan gratis de Groq tiene un tope diario; se renueva solo.
-- **Cambiar la clave:** clic derecho en el reactor → *Clave de Groq*.
+- **Cambiar las claves:** clic derecho en el reactor → *Clave de Groq* / *Clave de Gemini*.
+- **Gemini (opcional):** crea tu clave gratis en [Google AI Studio](https://aistudio.google.com/apikey); activa el respaldo y la visión.
 - **Registro:** `%APPDATA%\JARVIS\jarvis.log`.
 
 ---
