@@ -9,7 +9,8 @@
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
 ![Groq](https://img.shields.io/badge/IA-Groq%20Cloud-F55036)
-![Llama](https://img.shields.io/badge/Modelo-Llama%203.3%2070B-0467DF?logo=meta&logoColor=white)
+![Modelo](https://img.shields.io/badge/Modelo-el%20mejor%20de%20tu%20cuenta-0467DF)
+![Memoria](https://img.shields.io/badge/Memoria-SQLite-c49bff?logo=sqlite&logoColor=white)
 ![Voz](https://img.shields.io/badge/Voz-Neural%20en%20español-00d8ff)
 ![Licencia](https://img.shields.io/badge/Licencia-MIT-ffb000)
 
@@ -29,7 +30,9 @@
 <img src="docs/reactor.png" width="140" alt="Reactor flotante"><br>
 <sub>Reactor flotante en reposo (clic para hablar)</sub><br><br>
 <img src="docs/centro-control.png" width="560" alt="Centro de control"><br>
-<sub>Centro de control: toda la configuración sin tocar archivos</sub>
+<sub>Centro de control: toda la configuración sin tocar archivos</sub><br><br>
+<img src="docs/aprendizaje.png" width="560" alt="Pestaña Aprendizaje"><br>
+<sub>Aprendizaje: lo que JARVIS sabe de mí, las órdenes que aprendió solo y lo que me enseñó</sub>
 </div>
 
 ## 🚀 Características
@@ -37,19 +40,24 @@
 | | |
 |---|---|
 | 🎙️ **Activación por voz** | "Jarvis, …", doble aplauso 👏👏, `Ctrl+Alt+J` o clic en el reactor |
-| ☁️ **Cerebro en la nube** | Groq + Llama 3.3 70B: responde en menos de 1 s, gratis |
+| ☁️ **Cerebro en la nube** | Groq con el mejor modelo de tu cuenta (p. ej. GPT-OSS 120B): responde en menos de 1 s, gratis |
 | 🎮 **Cero impacto al jugar** | No usa GPU; JARVIS ocupa ~200 MB de RAM |
 | 🔁 **Respaldo automático** | Groq grande → Groq rápido → Google Gemini, sin que lo notes |
 | 🧭 **Elige modelos solo** | Consulta qué modelos tiene tu cuenta y usa el mejor disponible |
-| 🗣️ **Voz neural** | Voces de Microsoft en español, con respaldo sin internet |
+| 🗣️ **Voz neural** | Jorge (Microsoft) gratis e ilimitada; opcional ElevenLabs con voces británicas de mayordomo |
 | 💬 **Conversación continua** | Después de responder te sigue escuchando, sin repetir "Jarvis" |
 | 🖥️ **HUD holográfico** | Reactor animado que reacciona a tu voz, colores por estado |
 | ⚡ **Reflejos instantáneos** | Volumen, música y apps sin esperar a la IA |
 | 🧩 **45+ habilidades** | Apps, web, sistema, archivos, info, productividad |
-| 💾 **Memoria** | Recuerda datos tuyos para siempre |
-| 🎓 **Aprende** | Le enseñas comandos y rutinas nuevas por voz |
+| 🧠 **Aprendizaje mutuo** | Guarda en una base de datos lo que aprende de ti y lo que te enseña |
+| 🔁 **Órdenes que aprende solo** | Si le pides algo dos veces, a la tercera lo hace al instante; «así no» lo corrige |
+| 📚 **Lecciones y repasos** | «¿Qué aprendimos hoy?» y «Hazme un repaso»: te pregunta lo que te enseñó |
+| 🧵 **No pierde el hilo** | Recuerda la conversación aunque reinicies la PC |
+| 🎓 **Le enseñas** | Comandos y rutinas nuevas por voz o desde el Centro de control |
+| 🎵 **Spotify de verdad** | Busca y da play en la app de Spotify; videos y tutoriales en YouTube |
+| 🌐 **Lee páginas** | «Resúmeme esta página» lee la pestaña que tienes abierta |
 | 👁️ **Visión** | "¿Qué hay en mi pantalla?" con Gemini |
-| 🎛️ **Centro de control** | Voz (con vista previa), cerebro, memoria, comandos aprendidos y celular en una ventana |
+| 🎛️ **Centro de control** | Voz (con vista previa), cerebro, aprendizaje, música y celular en una ventana |
 | ⬆️ **Se actualiza solo** | Avisa cuando hay versión nueva y se instala con un clic o diciendo «actualízate» |
 | ⚡ **Habla por frases** | Empieza a responder mientras prepara el resto: se siente instantáneo |
 | 👂 **Oído preciso** | Whisper de Groq para entender mejor tus órdenes en español |
@@ -63,7 +71,9 @@
 ## 🗣️ Ejemplos
 
 ```
-"Jarvis, abre Spotify y pon música de Queen"
+"Jarvis, pon Queen en Spotify"               "Jarvis, ¿qué sabes de mí?"
+"Jarvis, ¿qué aprendimos hoy?"               "Jarvis, hazme un repaso"
+"Jarvis, resúmeme esta página"               "No, así no" (olvida la última orden aprendida)
 "Jarvis, volumen al 30"                      "Jarvis, ¿cómo está el clima?"
 "Jarvis, recuérdame en 20 minutos sacar la ropa"
 "Jarvis, anota pan y leche en la lista de compras"
@@ -86,6 +96,8 @@ flowchart LR
     R -->|orden compleja| C[cerebro.py<br>Groq ☁️]
     C -->|plan JSON| H
     H -->|resultados| C
+    C <-->|aprende y recuerda| DB[(memoria.py<br>SQLite)]
+    R <-->|órdenes aprendidas| DB
     H --> PC[🖥️ Windows]
     C --> V[voz.py<br>voz neural]
     V --> HUD[hud.py<br>interfaz]
@@ -98,6 +110,10 @@ flowchart LR
 | `voz.py` | Voz neural y voz de Windows de respaldo |
 | `cerebro.py` | Personalidad, prompt, conexión con Groq y respaldo automático |
 | `rapido.py` | Órdenes instantáneas y comandos aprendidos |
+| `memoria.py` | Base de datos del aprendizaje mutuo (`%APPDATA%\JARVIS\jarvis.db`) |
+| `musica.py` | Reproducción en la app de Spotify |
+| `centro.py` | Centro de control |
+| `servidor.py` / `tunel.py` | Enlace con la app Android (WiFi o datos móviles) |
 | `habilidades.py` | Todas las acciones sobre la PC e internet |
 | `hud.py` | Interfaz holográfica y reactor flotante |
 | `datos/` | Configuración y ejemplos de entrenamiento |
@@ -138,6 +154,10 @@ Clic derecho en el reactor → **Centro de control** (o di *"Jarvis, abre el cen
 |---|---|
 | `trato` / `nombre_usuario` | `"señor"`, `"Abner"` |
 | `voz` | `es-MX-JorgeNeural`, `es-ES-AlvaroNeural`, `es-PE-AlexNeural` |
+| `velocidad_voz` / `tono_voz` | `+8%` / `-6Hz` (la voz normal de JARVIS) |
+| `voz_proveedor` | `edge` (Jorge, gratis) o `elevenlabs` |
+| `elevenlabs_api_key` / `elevenlabs_voz` | clave gratis de ElevenLabs · id de la voz (Daniel por defecto) |
+| `musica` | `auto` (Spotify si está instalado), `spotify` o `youtube` |
 | `ciudad` | `"Lima"` |
 | `contactos` | `{"mamá": "+51999999999"}` |
 | `rutinas` | modo gamer, modo estudio, buenas noches… |
@@ -149,11 +169,20 @@ Clic derecho en el reactor → **Centro de control** (o di *"Jarvis, abre el cen
 | `sensibilidad_aplauso` | umbral de volumen (también desde la prueba de aplausos) |
 | `acceso_remoto` | `true` (túnel para usarlo con datos móviles) |
 
-## 🎓 Entrenamiento
+## 🧠 Aprendizaje mutuo
 
-- **Por voz:** *"cuando te diga X, haz Y"* crea un comando nuevo al instante.
+JARVIS aprende mientras hablamos y todo queda en `%APPDATA%\JARVIS\jarvis.db` (SQLite, solo en mi PC):
+
+| Qué guarda | Cómo |
+|---|---|
+| **Lo que sabe de mí** | La IA anota sola gustos, datos, hábitos y correcciones, y los usa para adaptarse |
+| **Órdenes aprendidas** | Si una orden termina igual dos veces, la tercera va directo, sin esperar a la IA |
+| **Lecciones** | Cuando me explica algo, guarda un resumen; luego me lo repasa con preguntas |
+| **Conversaciones** | Retoma el hilo aunque reinicie la PC |
+
+- **Por voz:** *"cuando te diga X, haz Y"*, *"recuerda que…"*, *"olvida…"*, *"no, así no"*.
+- **Desde el Centro de control:** pestaña *Aprendizaje* para ver, corregir o enseñarle cosas.
 - **Con ejemplos:** menú → *Entrenar (mis ejemplos)* y agregas pares orden → respuesta.
-- **Memoria:** *"recuerda que…"* / *"olvida…"*.
 
 ## 🛠️ Atajos
 
@@ -171,6 +200,8 @@ Clic derecho en el reactor → **Centro de control** (o di *"Jarvis, abre el cen
 - **"Alcancé el límite gratuito":** el plan gratis de Groq tiene un tope diario; se renueva solo.
 - **Cambiar las claves:** clic derecho en el reactor → *Clave de Groq* / *Clave de Gemini*.
 - **Gemini (opcional):** crea tu clave gratis en [Google AI Studio](https://aistudio.google.com/apikey); activa el respaldo y la visión.
+- **Voz de ElevenLabs (opcional):** crea una clave gratis en [ElevenLabs](https://elevenlabs.io/app/settings/api-keys) y pégala en *Centro de control → Voz*. El plan gratis es para uso personal y trae créditos mensuales; cuando se acaban, vuelve Jorge.
+- **Spotify no da play:** deja la app de Spotify abierta e iniciada; si no logra confirmar que suena, te deja los resultados abiertos.
 - **Registro:** `%APPDATA%\JARVIS\jarvis.log`.
 
 ---
