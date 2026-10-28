@@ -35,6 +35,10 @@ jobs:
           python -m pip install --upgrade pip
           python -m pip install -r requirements.txt pyinstaller
 
+      - name: Descargar cloudflared (acceso remoto)
+        shell: pwsh
+        run: Invoke-WebRequest -Uri "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe" -OutFile cloudflared.exe
+
       - name: Crear JARVIS.exe
         run: python -m PyInstaller --noconfirm --clean JARVIS.spec
 

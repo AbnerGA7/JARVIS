@@ -2,8 +2,9 @@
 # Receta de PyInstaller para empaquetar J.A.R.V.I.S. (la usa compilar_exe.bat)
 from PyInstaller.utils.hooks import collect_all
 
+import os
 datas = [("jarvis.ico", "."), ("datos", "datos")]
-binaries = []
+binaries = [("cloudflared.exe", ".")] if os.path.exists("cloudflared.exe") else []   # acceso remoto
 hiddenimports = ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "pystray._win32", "comtypes.stream",
                  "win32timezone", "PIL._tkinter_finder", "audio", "keyboard", "pyperclip", "pycaw.pycaw"]
 
