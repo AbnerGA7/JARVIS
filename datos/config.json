@@ -12,8 +12,8 @@
     "jarvas"
   ],
   "voz": "es-MX-JorgeNeural",
-  "velocidad_voz": "+8%",
-  "tono_voz": "-6Hz",
+  "velocidad_voz": "-4%",
+  "tono_voz": "-12Hz",
   "idioma_reconocimiento": "es-PE",
   "proveedor": "groq",
   "groq_api_key": "",
