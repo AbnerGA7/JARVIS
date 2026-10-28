@@ -74,6 +74,7 @@ class Jarvis:
             (lambda: "Activar micrófono" if self.silencio else "Silenciar micrófono", self.alternar_silencio),
             (lambda: "Ocultar el reactor" if self.cfg.get("mostrar_orbe", True) else "Mostrar el reactor", self.alternar_orbe),
             ("-", None),
+            ("Micrófono y parlantes", self.abrir_ajustes_audio),
             ("Clave de Groq (cerebro en la nube)", self.cambiar_clave),
             ("Clave de Gemini (respaldo y visión)", self.cambiar_clave_gemini),
             ("Configuración", lambda: os.startfile(ruta("config.json"))),
@@ -196,6 +197,44 @@ class Jarvis:
                 self.decir(f"Núcleo de respaldo conectado, {self.trato}. Ahora también puedo ver su pantalla.")
                 return True
         return False
+
+    # ================================================================ micrófono y parlantes
+    def abrir_ajustes_audio(self):
+        from audio import listar_microfonos, listar_parlantes
+        self.hud.ajustes_audio(listar_microfonos(), listar_parlantes(), self.cfg.get("microfono", ""),
+                               self.cfg.get("parlantes", ""), self._probar_microfono, self._probar_parlantes,
+                               self._guardar_audio)
+
+    def _probar_microfono(self, nombre):
+        """Cambia de micrófono en vivo para que la barra de la ventana muestre si te escucha."""
+        if not self.oido:
+            return
+        self.cfg["microfono"] = nombre
+        try:
+            self.oido.reiniciar()
+        except Exception:
+            self.hud.alerta("No pude abrir ese micrófono. Prueba con otro.")
+
+    def _probar_parlantes(self, nombre):
+        if not self.voz:
+            return
+        if not self.voz.abrir_salida(nombre):
+            self.hud.alerta("No pude usar esa salida de audio. Uso la predeterminada.")
+        self.decir(f"Así sueno por estos parlantes, {self.trato}.", registrar=False)
+
+    def _guardar_audio(self, microfono, parlantes, guardar=True):
+        cambio_mic = microfono != self.cfg.get("microfono", "") or not guardar
+        self.cfg["microfono"], self.cfg["parlantes"] = microfono, parlantes
+        if self.oido and cambio_mic:
+            try:
+                self.oido.reiniciar()
+            except Exception:
+                pass
+        if self.voz:
+            self.voz.abrir_salida(parlantes)
+        if guardar:
+            guardar_config(self.cfg)
+            self.hud.registrar("JARVIS", "Ajustes de audio guardados.")
 
     def cambiar_clave_gemini(self):
         threading.Thread(target=self._conectar_gemini, kwargs={"forzar_dialogo": True}, daemon=True).start()
