@@ -808,11 +808,43 @@ class Habilidades:
         if conectar:
             conectar(decirlo=True)
 
+    def h_resumen_dia(self, v, a):
+        """Resumen para empezar el día: fecha, clima, recordatorios, tareas y titulares."""
+        ahora = datetime.datetime.now()
+        partes = [f"Hoy es {DIAS[ahora.weekday()]} {ahora.day} de {MESES[ahora.month - 1]}, son {hora_hablada(ahora)}."]
+        try:
+            largo, _ = self.clima_texto()
+            if largo:
+                partes.append("Clima: " + largo)
+        except Exception:
+            pass
+        hoy = [r for r in self.recordatorios.pendientes() if r["cuando"][:10] == ahora.date().isoformat()]
+        partes.append("Recordatorios de hoy: " + ("; ".join(f"{r['texto']} a las {r['cuando'][11:16]}" for r in hoy) or "ninguno") + ".")
+        tareas = self.n.alm_listas.datos.get("tareas", [])
+        partes.append("Tareas pendientes: " + ("; ".join(tareas[:6]) or "ninguna") + ".")
+        try:
+            clase, noticias = self.h_noticias("", {})
+            partes.append(noticias.replace("Resume los 3 o 4 más relevantes en pocas frases.", ""))
+        except Exception:
+            pass
+        return ("info", "[resumen_dia] " + "\n".join(partes) +
+                "\nDa un resumen cálido y breve (4 a 6 frases): saludo según la hora, clima, lo pendiente y 2 titulares.")
+
     def h_ajustes_audio(self, v, a):
         abrir = getattr(self.n, "abrir_ajustes_audio", None)
         if abrir:
             abrir()
         return ("decir", "Le abrí los ajustes de micrófono y parlantes.")
+
+    def h_actualizar(self, v, a):
+        buscar = getattr(self.n, "buscar_actualizacion", None)
+        if buscar:
+            return buscar(desde_voz=True)
+
+    def h_centro_control(self, v, a):
+        abrir = getattr(self.n, "abrir_centro_control", None)
+        if abrir:
+            abrir()
 
     def h_modo(self, v, a):
         self.n.poner_modo("silencio" if "silen" in normalizar(v) or "pausa" in normalizar(v) else "activo")

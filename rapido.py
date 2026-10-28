@@ -31,6 +31,12 @@ REGLAS = [
     (r"^(cambia|cambiar|configura|configurar|elige|elegir|ajusta|ajustar) (el |los |de )?(microfono|parlantes|audifonos|"
      r"audio|salida de audio|entrada de audio)( y (los )?(parlantes|microfono))?$",
      lambda m: [{"tipo": "ajustes_audio", "valor": ""}]),
+    (r"^(buenos dias|buen dia|buenas|dame el resumen( del dia)?|resumen del dia|como esta mi dia|que tengo (para )?hoy)( jarvis)?$",
+     lambda m: [{"tipo": "resumen_dia", "valor": ""}]),
+    (r"^(actualizate|actualizar|busca actualizaciones|hay (alguna )?actualizacion|actualiza jarvis)$",
+     lambda m: [{"tipo": "actualizar", "valor": ""}]),
+    (r"^(abre )?(el )?(centro de control|configuracion de jarvis|tus ajustes|ajustes de jarvis)$",
+     lambda m: [{"tipo": "centro_control", "valor": ""}]),
     (r"^(conecta|conectar|vincula|vincular|enlaza|enlazar|empareja|emparejar) (mi |el |un )?(celular|telefono|movil|android)$",
      lambda m: [{"tipo": "conectar_celular", "valor": ""}]),
 ]
