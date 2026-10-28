@@ -26,6 +26,8 @@ class Oido:
         self.error = None
         # aplausos
         self._rms_prev = 0.0
+        self._rms_prev2 = 0.0
+        self._fondo_pico = 0.02            # ruido de fondo (se adapta solo)
         self._candidato = None             # (tiempo, pico, frames_vistos, energia)
         self._aplausos = []
         self._enfriar = 0.0
@@ -84,7 +86,7 @@ class Oido:
         except Exception:
             pass
         if self.ignorar.is_set():
-            self._rms_prev = rms
+            self._rms_prev2, self._rms_prev = self._rms_prev, rms
             return
         try:
             self.cola.put_nowait((indata[:, 0].tobytes(), rms))
@@ -92,35 +94,49 @@ class Oido:
             pass
         if self.cfg.get("aplausos", True):
             self._detectar_aplauso(rms, pico)
-        self._rms_prev = rms
+        self._rms_prev2, self._rms_prev = self._rms_prev, rms
 
     # ------------------------------------------------------------ aplausos
     def _detectar_aplauso(self, rms, pico):
+        """
+        Doble aplauso, adaptado a cada micrófono:
+        - el aplauso debe sobresalir del ruido de fondo (relativo) y superar un mínimo (sensibilidad),
+        - debe empezar de golpe (lo anterior era silencio) y apagarse rápido (la voz y la música no).
+        """
         ahora = self._bloques * BLOQUE / TASA
-        umbral = float(self.cfg.get("sensibilidad_aplauso", 0.35))
+        minimo = float(self.cfg.get("sensibilidad_aplauso", 0.18))
         if self._candidato:
             t0, p0, n, energia = self._candidato
-            n += 1; energia += rms
-            if n >= 4:  # 120 ms después: un aplauso decae rápido, la voz no
+            n += 1
+            energia += rms
+            if n >= 3:  # 90 ms después: un aplauso ya se apagó
                 self._candidato = None
-                if energia / n < p0 * 0.22:
-                    self._aplausos = [a for a in self._aplausos if ahora - a < 1.0] + [t0]
-                    try:
-                        self.al_aplauso_suelto()
-                    except Exception:
-                        pass
-                    if len(self._aplausos) >= 2:
-                        sep = self._aplausos[-1] - self._aplausos[-2]
-                        if 0.12 < sep < 0.9 and ahora > self._enfriar:
-                            self._aplausos.clear()
-                            self._enfriar = ahora + 2.5
-                            threading.Thread(target=self.al_aplaudir, daemon=True).start()
+                if energia / n < p0 * 0.35:
+                    self._registrar_aplauso(t0, p0)
             else:
                 self._candidato = (t0, p0, n, energia)
             return
-        # inicio brusco: pico fuerte saliendo de algo silencioso
-        if pico > umbral and self._rms_prev < pico * 0.25:
+        antes = min(self._rms_prev, getattr(self, "_rms_prev2", 0.0))
+        if pico > max(minimo, self._fondo_pico * 5) and antes < pico * 0.3:
             self._candidato = (ahora, pico, 0, 0.0)
+        elif pico < self._fondo_pico * 3 or self._fondo_pico < 0.01:
+            self._fondo_pico = 0.97 * self._fondo_pico + 0.03 * pico   # ruido de fondo del cuarto
+
+    def _registrar_aplauso(self, t0, pico):
+        ahora = self._bloques * BLOQUE / TASA
+        self._aplausos = [a for a in self._aplausos if ahora - a < 1.4] + [t0]
+        log.debug("Aplauso (pico %.2f, fondo %.3f)", pico, self._fondo_pico)
+        try:
+            self.al_aplauso_suelto()
+        except Exception:
+            pass
+        if len(self._aplausos) >= 2:
+            sep = self._aplausos[-1] - self._aplausos[-2]
+            if 0.12 < sep < 1.2 and ahora > self._enfriar:
+                self._aplausos.clear()
+                self._enfriar = ahora + 2.5
+                log.info("Doble aplauso detectado")
+                threading.Thread(target=self.al_aplaudir, daemon=True).start()
 
     # ------------------------------------------------------------ escuchar
     def escuchar(self, espera=None, limite=12.0, abortar=None, al_empezar=None, preciso=False):
