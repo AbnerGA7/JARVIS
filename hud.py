@@ -20,6 +20,22 @@ ARRANQUE = ["INICIALIZANDO NÚCLEO J.A.R.V.I.S.", "CALIBRANDO MICRÓFONO .......
             "ENLACE RED NEURONAL ......... OK", "MÓDULOS DE CONTROL .......... OK", "PROTOCOLOS DE SEGURIDAD ..... OK",
             "TODOS LOS SISTEMAS EN LÍNEA"]
 W, H, ORB = 900, 540, 150
+SERVICIOS = {
+    "groq": {
+        "color": "#00d8ff", "titulo": "ACTIVAR NÚCLEO EN LA NUBE", "etiqueta": "CLAVE DE GROQ",
+        "subtitulo": "Groq · gratis · ultrarrápido · no usa tu tarjeta gráfica",
+        "pasos": "1.  Abre Groq con el botón de abajo e inicia sesión (con Google es un clic).\n"
+                 "2.  Pulsa  «Create API Key», ponle de nombre JARVIS y copia la clave.\n"
+                 "3.  Pégala aquí (Ctrl+V) y pulsa CONECTAR.",
+        "boton": "ABRIR GROQ", "url": "https://console.groq.com/keys"},
+    "gemini": {
+        "color": "#ffb000", "titulo": "NÚCLEO DE RESPALDO Y VISIÓN", "etiqueta": "CLAVE DE GEMINI",
+        "subtitulo": "Google Gemini · gratis · respaldo automático · ve tu pantalla",
+        "pasos": "1.  Abre Google AI Studio con el botón de abajo e inicia sesión con tu cuenta de Google.\n"
+                 "2.  Pulsa  «Create API key» (o «Crear clave de API») y cópiala.\n"
+                 "3.  Pégala aquí (Ctrl+V) y pulsa CONECTAR.  Es opcional: puedes hacerlo luego.",
+        "boton": "ABRIR AI STUDIO", "url": "https://aistudio.google.com/apikey"},
+}
 
 
 def _rgb(c):
@@ -115,11 +131,11 @@ class HUD:
     def cerrar(self):
         self.q.put(("salir", None, None))
 
-    def pedir_clave(self, error=None):
-        """Muestra la ventana para pegar la clave de Groq y espera. Devuelve la clave o None si se cancela."""
+    def pedir_clave(self, error=None, servicio="groq"):
+        """Muestra la ventana para pegar una clave (groq o gemini) y espera. Devuelve la clave o None."""
         import threading
         listo, caja = threading.Event(), {}
-        self.q.put(("dialogo", (listo, caja), error))
+        self.q.put(("dialogo", (listo, caja, servicio), error))
         listo.wait()
         return caja.get("clave")
 
@@ -271,12 +287,13 @@ class HUD:
             pass
 
     # ================================================================ ventana de la clave
-    def _dialogo_clave(self, listo, caja, error=None):
+    def _dialogo_clave(self, listo, caja, servicio="groq", error=None):
         import webbrowser
-        c = COLORES["EN LÍNEA"]
+        info = SERVICIOS[servicio]
+        c = info["color"]
         tenue = mezclar(c, FONDO, 0.55)
         d = tk.Toplevel(self.root)
-        d.title("J.A.R.V.I.S. — Núcleo en la nube")
+        d.title("J.A.R.V.I.S. — " + info["titulo"].title())
         try:
             if self.icono:
                 d.iconbitmap(self.icono)
@@ -287,19 +304,16 @@ class HUD:
         d.resizable(False, False)
         cuerpo = tk.Frame(d, bg=FONDO, padx=28, pady=22)
         cuerpo.pack(fill="both", expand=True)
-        tk.Label(cuerpo, text="◤ ACTIVAR NÚCLEO EN LA NUBE", fg=c, bg=FONDO,
+        tk.Label(cuerpo, text="◤ " + info["titulo"], fg=c, bg=FONDO,
                  font=("Consolas", 14, "bold")).pack(anchor="w")
-        tk.Label(cuerpo, text="Groq · gratis · ultrarrápido · no usa tu tarjeta gráfica", fg=tenue, bg=FONDO,
+        tk.Label(cuerpo, text=info["subtitulo"], fg=tenue, bg=FONDO,
                  font=("Consolas", 9)).pack(anchor="w", pady=(2, 14))
-        pasos = ("1.  Abre Groq con el botón de abajo e inicia sesión (con Google es un clic).\n"
-                 "2.  Pulsa  «Create API Key», ponle de nombre JARVIS y copia la clave.\n"
-                 "3.  Pégala aquí (Ctrl+V) y pulsa CONECTAR.")
-        tk.Label(cuerpo, text=pasos, fg=TEXTO, bg=FONDO, justify="left", font=("Segoe UI", 10)).pack(anchor="w")
-        tk.Button(cuerpo, text="ABRIR GROQ  ↗", command=lambda: webbrowser.open("https://console.groq.com/keys"),
+        tk.Label(cuerpo, text=info["pasos"], fg=TEXTO, bg=FONDO, justify="left", font=("Segoe UI", 10)).pack(anchor="w")
+        tk.Button(cuerpo, text=info["boton"] + "  ↗", command=lambda: webbrowser.open(info["url"]),
                   bg=FONDO, fg=c, activebackground=c, activeforeground="#000000", relief="flat", bd=0,
                   highlightthickness=1, highlightbackground=c, font=("Consolas", 10, "bold"), padx=14, pady=6,
                   cursor="hand2").pack(anchor="w", pady=(12, 16))
-        tk.Label(cuerpo, text="CLAVE DE GROQ", fg=c, bg=FONDO, font=("Consolas", 9, "bold")).pack(anchor="w")
+        tk.Label(cuerpo, text=info["etiqueta"], fg=c, bg=FONDO, font=("Consolas", 9, "bold")).pack(anchor="w")
         valor = tk.StringVar()
         entrada = tk.Entry(cuerpo, textvariable=valor, show="•", width=52, bg="#081c2a", fg=TEXTO,
                            insertbackground=c, relief="flat", font=("Consolas", 11),

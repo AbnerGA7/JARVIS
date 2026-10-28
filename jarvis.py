@@ -75,6 +75,7 @@ class Jarvis:
             (lambda: "Ocultar el reactor" if self.cfg.get("mostrar_orbe", True) else "Mostrar el reactor", self.alternar_orbe),
             ("-", None),
             ("Clave de Groq (cerebro en la nube)", self.cambiar_clave),
+            ("Clave de Gemini (respaldo y visión)", self.cambiar_clave_gemini),
             ("Configuración", lambda: os.startfile(ruta("config.json"))),
             ("Entrenar (mis ejemplos)", lambda: os.startfile(ruta("mis_ejemplos.json"))),
             ("Recargar configuración", self.recargar),
@@ -128,6 +129,7 @@ class Jarvis:
         try:
             if self.cerebro.usar_nube():
                 self._conectar_groq()
+                self._conectar_gemini()
             else:
                 self._preparar_ollama()
         except Exception as e:
@@ -166,6 +168,37 @@ class Jarvis:
             self.hud.registrar("JARVIS", "Núcleo en la nube conectado.")
             self.decir(f"Núcleo de inteligencia en la nube conectado. Ahora puedo hacer cualquier cosa que me pida, {self.trato}.")
         return ok
+
+    def _conectar_gemini(self, forzar_dialogo=False):
+        """Gemini es opcional: respaldo automático de Groq y visión de pantalla. Se ofrece una sola vez."""
+        ok, msg = (False, "") if forzar_dialogo else self.cerebro.preparar_gemini()
+        if ok:
+            return True
+        tiene_clave = bool(self.cerebro.clave_gemini())
+        if not forzar_dialogo:
+            if msg.startswith("Sin conexión"):
+                return False
+            if not tiene_clave and self.cfg.get("gemini_preguntado"):
+                return False
+        self.cfg["gemini_preguntado"] = True
+        guardar_config(self.cfg)
+        error = msg if (tiene_clave and not forzar_dialogo) else None
+        while self.ejecutando:
+            clave = self.hud.pedir_clave(error, servicio="gemini")
+            if clave is None:
+                return False
+            ok, error, modelo = self.cerebro.probar_gemini(clave)
+            if ok:
+                self.cfg["gemini_api_key"] = clave.strip()
+                guardar_config(self.cfg)
+                self.cerebro.preparar_gemini()
+                self.hud.registrar("JARVIS", f"Gemini conectado ({modelo}).")
+                self.decir(f"Núcleo de respaldo conectado, {self.trato}. Ahora también puedo ver su pantalla.")
+                return True
+        return False
+
+    def cambiar_clave_gemini(self):
+        threading.Thread(target=self._conectar_gemini, kwargs={"forzar_dialogo": True}, daemon=True).start()
 
     def cambiar_clave(self):
         threading.Thread(target=self._conectar_groq, kwargs={"forzar_dialogo": True}, daemon=True).start()
@@ -316,7 +349,7 @@ class Jarvis:
                                "aplicaciones y páginas, controlar el volumen y la música.")
                 else:
                     self.decir(f"Mi núcleo de inteligencia no está conectado, {self.trato}. Haga clic derecho en el reactor "
-                               "y elija Clave de Groq.")
+                               "y elija Clave de Groq o Clave de Gemini.")
                 return
             plan = self.cerebro.pensar(orden, self.contexto())
         return self.ejecutar_plan(plan)
