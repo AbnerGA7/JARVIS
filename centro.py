@@ -174,11 +174,13 @@ class CentroControl:
         self.voz_var = tk.StringVar(value=actual)
         ttk.Combobox(fila, textvariable=self.voz_var, values=nombres, state="readonly", width=34, style="J.TCombobox",
                      font=("Segoe UI", 10)).pack(side="left")
-        self.vel_var = self._deslizador(m, "Velocidad", -30, 40, _numero(self.cfg.get("velocidad_voz", "+8%"), 8), "%")
-        self.tono_var = self._deslizador(m, "Tono", -20, 20, _numero(self.cfg.get("tono_voz", "-6Hz"), -6), "Hz")
+        self.vel_var = self._deslizador(m, "Velocidad", -30, 40, _numero(self.cfg.get("velocidad_voz", "-4%"), -4), "%")
+        self.tono_var = self._deslizador(m, "Tono", -20, 20, _numero(self.cfg.get("tono_voz", "-12Hz"), -12), "Hz")
         fila2 = tk.Frame(m, bg=FONDO)
         fila2.pack(fill="x", pady=(10, 0))
         self._boton(fila2, "▶ PROBAR VOZ", self._probar_voz).pack(side="left")
+        self._boton(fila2, "🎩 VOZ DE MAYORDOMO", self._mayordomo).pack(side="left", padx=8)
+        self._nota(m, "El celular usa esta misma voz (la pide a tu PC). Sin PC, usa la voz de Android más parecida.")
         self._titulo(m, "OÍDO")
         self.trans_var = tk.StringVar(value="Whisper (Groq) — más preciso" if self.cfg.get("transcriptor", "groq") == "groq"
                                       else "Google — básico")
@@ -196,6 +198,13 @@ class CentroControl:
         self.cfg["velocidad_voz"] = f"{int(self.vel_var.get()):+d}%"
         self.cfg["tono_voz"] = f"{int(self.tono_var.get()):+d}Hz"
         self.cfg["transcriptor"] = "groq" if self.trans_var.get().startswith("Whisper") else "google"
+
+    def _mayordomo(self):
+        """Ajuste recomendado: voz masculina mexicana, pausada y grave, como el JARVIS del doblaje."""
+        self.voz_var.set(next(n for k, n in VOCES if k == "es-MX-JorgeNeural"))
+        self.vel_var.set(-4)
+        self.tono_var.set(-12)
+        self._probar_voz()
 
     def _probar_voz(self):
         self._aplicar_voz()
