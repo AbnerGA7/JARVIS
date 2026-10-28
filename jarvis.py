@@ -451,6 +451,8 @@ class Jarvis:
             segundos = float(self.cfg.get("segundos_conversacion", 7))
             if segundos <= 0:
                 break
+            if self.ultima_frase.rstrip().endswith("?"):
+                segundos = max(segundos, 12)        # te hizo una pregunta: te da tiempo de pensar la respuesta
             self.hud.estado("ESCUCHANDO", "¿Algo más? Puedes seguir hablando.")
             orden = self.oido.escuchar(espera=segundos, limite=16, abortar=self.activar_evt, preciso=True,
                                        al_empezar=lambda: self.hud.estado("ESCUCHANDO", "· · ·"))
