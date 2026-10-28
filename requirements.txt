@@ -16,3 +16,4 @@ pillow
 keyboard
 ddgs
 cryptography
+winotify
