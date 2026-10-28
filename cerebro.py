@@ -232,9 +232,9 @@ class Cerebro:
     @staticmethod
     def modelos_groq(clave):
         """Lista los modelos que esta clave puede usar. Devuelve (lista o None, mensaje)."""
-        clave = (clave or "").strip()
-        if not clave.startswith("gsk_"):
-            return None, "Las claves de Groq empiezan con gsk_"
+        clave = (clave or "").strip().strip('"').strip("'")
+        if len(clave) < 20 or " " in clave:
+            return None, "Esa clave parece incompleta. Cópiala completa desde Groq"
         try:
             r = requests.get(GROQ + "/models", headers={"Authorization": f"Bearer {clave}"}, timeout=10)
             if r.status_code == 200:
@@ -390,11 +390,18 @@ class Cerebro:
 
     def probar_gemini(self, clave):
         """Comprueba una clave de Gemini. Devuelve (ok, mensaje, modelo)."""
-        clave = (clave or "").strip()
-        if not clave.startswith("AIza"):
-            return False, "Las claves de Gemini empiezan con AIza", None
+        clave = (clave or "").strip().strip('"').strip("'")
+        if len(clave) < 20 or " " in clave:
+            return False, "Esa clave parece incompleta. Cópiala completa desde AI Studio", None
         try:
-            r = requests.get(GEMINI + "/models", params={"pageSize": 200}, headers={"x-goog-api-key": clave}, timeout=10)
+            r = None
+            # Google tiene claves clásicas (AIza...) y nuevas (AQ....): se prueban las formas de enviarla
+            for forma in ("cabecera", "parametro", "bearer"):
+                r = requests.get(GEMINI + "/models", params=_params_gemini(clave, forma, {"pageSize": 200}),
+                                 headers=_cabecera_gemini(clave, forma), timeout=10)
+                if r.status_code == 200:
+                    self.forma_gemini = forma
+                    break
             if r.status_code == 200:
                 modelo = self.elegir_modelo_gemini(r.json().get("models", []), self.cfg.get("modelo_gemini", ""))
                 if modelo:
@@ -443,9 +450,11 @@ class Cerebro:
         if sistema:
             cuerpo["systemInstruction"] = {"parts": [{"text": sistema}]}
         url = f"{GEMINI}/models/{modelo}:generateContent"
-        cab = {"x-goog-api-key": self.clave_gemini()}
+        forma = getattr(self, "forma_gemini", "cabecera")
+        cab = _cabecera_gemini(self.clave_gemini(), forma)
+        params = _params_gemini(self.clave_gemini(), forma)
         for intento in range(3):
-            r = requests.post(url, json=cuerpo, headers=cab, timeout=45)
+            r = requests.post(url, json=cuerpo, headers=cab, params=params or None, timeout=45)
             if r.status_code == 200:
                 d = r.json()
                 partes = (d.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
@@ -579,6 +588,21 @@ class LimiteNube(Exception):
 
 class ClaveInvalida(Exception):
     pass
+
+
+def _cabecera_gemini(clave, forma):
+    if forma == "cabecera":
+        return {"x-goog-api-key": clave}
+    if forma == "bearer":
+        return {"Authorization": f"Bearer {clave}"}
+    return {}
+
+
+def _params_gemini(clave, forma, extra=None):
+    p = dict(extra or {})
+    if forma == "parametro":
+        p["key"] = clave
+    return p
 
 
 def _segundos(valor):
