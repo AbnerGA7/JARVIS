@@ -199,10 +199,15 @@ class Voz:
         try:
             import pyttsx3
             motor = pyttsx3.init()
-            for v in motor.getProperty("voices"):
-                if any(k in (v.name + str(v.languages)).lower() for k in ("spanish", "español", "es-", "sabina", "helena", "pablo", "raul")):
-                    motor.setProperty("voice", v.id)
+            # sin internet: la voz masculina en español más parecida a Jorge (Jorge > Raúl > Pablo > Álvaro > cualquiera)
+            voces = motor.getProperty("voices")
+            elegida = None
+            for preferida in ("jorge", "raul", "pablo", "alvaro", "jorge", "spanish", "español", "es-"):
+                elegida = next((v for v in voces if preferida in (v.name + str(v.languages)).lower()), None)
+                if elegida:
                     break
+            if elegida:
+                motor.setProperty("voice", elegida.id)
             motor.setProperty("rate", 185)
             self.al_nivel(0.6)
             motor.say(texto)

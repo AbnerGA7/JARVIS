@@ -13,7 +13,7 @@ C = COLORES["EN LÍNEA"]
 PANEL = "#081c2a"
 TENUE = mezclar(C, FONDO, 0.55)
 VOCES = [
-    ("es-MX-JorgeNeural", "Jorge · México (hombre)"), ("es-MX-DaliaNeural", "Dalia · México (mujer)"),
+    ("es-MX-JorgeNeural", "Jorge · México (voz oficial de JARVIS)"), ("es-MX-DaliaNeural", "Dalia · México (mujer)"),
     ("es-PE-AlexNeural", "Alex · Perú (hombre)"), ("es-PE-CamilaNeural", "Camila · Perú (mujer)"),
     ("es-ES-AlvaroNeural", "Álvaro · España (hombre)"), ("es-ES-ElviraNeural", "Elvira · España (mujer)"),
     ("es-CO-GonzaloNeural", "Gonzalo · Colombia (hombre)"), ("es-CO-SalomeNeural", "Salomé · Colombia (mujer)"),
