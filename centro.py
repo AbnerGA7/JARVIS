@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 """
 Centro de control de J.A.R.V.I.S.: toda la configuración en una ventana, sin editar archivos.
-Pestañas: General · Voz · Cerebro · Memoria · Celular · Acerca de.
+Pestañas: General · Voz · Cerebro · Aprendizaje · Celular · Acerca de.
 """
-import os, threading, datetime
+import os, json, threading, datetime, webbrowser
 import tkinter as tk
 from tkinter import ttk
 from config import VERSION, DATOS, guardar_config
@@ -21,6 +21,16 @@ VOCES = [
     ("es-US-AlonsoNeural", "Alonso · EE. UU. (hombre)"), ("es-US-PalomaNeural", "Paloma · EE. UU. (mujer)"),
     ("es-CL-LorenzoNeural", "Lorenzo · Chile (hombre)"), ("es-VE-SebastianNeural", "Sebastián · Venezuela (hombre)"),
 ]
+PROVEEDORES = [("edge", "Jorge y voces de Microsoft · gratis e ilimitado"),
+               ("elevenlabs", "ElevenLabs · voz británica de mayordomo (cuenta gratis)")]
+VOCES_ELEVEN = [
+    ("onwK4e9ZLuTAKqWW03F9", "Daniel · británico, firme (la más estilo JARVIS)"),
+    ("JBFqnCBsd6RMkjVDRZzb", "George · británico, cálido"),
+    ("N2lVS1w4EtoT3dr4eOWO", "Callum · transatlántico, intenso"),
+    ("nPczCjzI2devNBz1zQrb", "Brian · americano, grave"),
+    ("TX3LPaxmHKxFdv7VOQHJ", "Liam · americano, claro"),
+]
+MUSICA = [("auto", "Automático (Spotify si lo tengo instalado)"), ("spotify", "Spotify"), ("youtube", "YouTube")]
 
 
 def _numero(texto, defecto=0):
@@ -135,6 +145,21 @@ class CentroControl:
             tk.Label(fila, text=sufijo, fg=TENUE, bg=FONDO, font=("Consolas", 9)).pack(side="left", padx=6)
         return var
 
+    def _opciones(self, padre, etiqueta, opciones, actual, editable=False):
+        """Lista desplegable que muestra nombres bonitos pero guarda la clave."""
+        fila = tk.Frame(padre, bg=FONDO)
+        fila.pack(fill="x", pady=3)
+        tk.Label(fila, text=etiqueta, fg=TEXTO, bg=FONDO, font=("Segoe UI", 10), width=24, anchor="w").pack(side="left")
+        var = tk.StringVar(value=next((n for k, n in opciones if k == actual), actual or opciones[0][1]))
+        ttk.Combobox(fila, textvariable=var, values=[n for _, n in opciones], state="normal" if editable else "readonly",
+                     width=44, style="J.TCombobox", font=("Segoe UI", 10)).pack(side="left")
+        return var
+
+    @staticmethod
+    def _clave(var, opciones):
+        texto = var.get().strip()
+        return next((k for k, n in opciones if n == texto), texto)
+
     def _lista(self, padre, elementos, alto=6):
         marco = tk.Frame(padre, bg=FONDO)
         marco.pack(fill="x")
@@ -160,6 +185,7 @@ class CentroControl:
         self._casilla(m, "Activarme con dos aplausos", "aplausos")
         self._casilla(m, "Mostrar el reactor flotante cuando estoy en espera", "mostrar_orbe")
         self._casilla(m, "Saludar al iniciar", "saludo_al_iniciar")
+        self.musica_var = self._opciones(m, "La música suena en", MUSICA, self.cfg.get("musica", "auto"))
         fila = tk.Frame(m, bg=FONDO)
         fila.pack(fill="x", pady=(12, 0))
         self._boton(fila, "MICRÓFONO, PARLANTES Y APLAUSOS", self.j.abrir_ajustes_audio).pack(side="left")
@@ -315,6 +341,7 @@ class CentroControl:
             if isinstance(var, tk.DoubleVar):
                 valor = round(float(valor), 2) if clave == "temperatura" else int(valor)
             self.cfg[clave] = valor
+        self.cfg["musica"] = self._clave(self.musica_var, MUSICA)
         self._aplicar_voz()
         guardar_config(self.cfg)
         threading.Thread(target=self.j.aplicar_config, daemon=True).start()
