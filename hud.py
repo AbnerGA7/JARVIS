@@ -152,6 +152,10 @@ class HUD:
     def mostrar_pin(self, pin, ip, puerto, minutos, url_remota=None):
         self.q.put(("pin", (pin, ip, puerto, minutos, url_remota), None))
 
+    def en_ui(self, funcion):
+        """Ejecuta una función en el hilo de la interfaz (para abrir ventanas desde otros hilos)."""
+        self.q.put(("llamar", funcion, None))
+
     def pedir_clave(self, error=None, servicio="groq"):
         """Muestra la ventana para pegar una clave (groq o gemini) y espera. Devuelve la clave o None."""
         import threading
@@ -257,6 +261,12 @@ class HUD:
             elif tipo == "silencio":
                 self.silenciado = a
                 self.q.put(("estado", "SILENCIO" if a else "EN ESPERA", None))
+            elif tipo == "llamar":
+                try:
+                    a()
+                except Exception as e:
+                    import logging
+                    logging.getLogger("jarvis").exception("Error en la interfaz: %s", e)
             elif tipo == "pin_cerrar":
                 if getattr(self, "_ventana_pin", None) and self._ventana_pin.winfo_exists():
                     self._ventana_pin.destroy()
