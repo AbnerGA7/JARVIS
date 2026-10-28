@@ -63,7 +63,7 @@ class CentroControl:
         self.nb = ttk.Notebook(d, style="J.TNotebook")
         self.nb.pack(fill="both", expand=True, padx=18)
         for titulo, construir in (("General", self._general), ("Voz", self._voz), ("Cerebro", self._cerebro),
-                                  ("Memoria", self._memoria), ("Celular", self._celular), ("Acerca de", self._acerca)):
+                                  ("Aprendizaje", self._aprendizaje), ("Celular", self._celular), ("Acerca de", self._acerca)):
             marco = tk.Frame(self.nb, bg=FONDO, padx=22, pady=18)
             self.nb.add(marco, text=f"  {titulo}  ")
             construir(marco)
@@ -317,34 +317,84 @@ class CentroControl:
         self._boton(fila2, "EDITAR MIS EJEMPLOS", lambda: os.startfile(os.path.join(DATOS, "mis_ejemplos.json"))).pack(side="left")
         self._boton(fila2, "RECARGAR", self.j.recargar).pack(side="left", padx=8)
 
-    def _memoria(self, m):
-        self._titulo(m, "LO QUE RECUERDO DE TI")
-        mem = self.j.alm_memoria
-        lb_mem = self._lista(m, mem.datos, 5)
-        self._boton(m, "OLVIDAR SELECCIONADO", lambda: self._borrar(lb_mem, mem.datos, mem)).pack(anchor="w", pady=(6, 0))
-        self._titulo(m, "COMANDOS QUE ME ENSEÑASTE")
+    def _aprendizaje(self, m):
+        mem = self.j.memoria
+        est = mem.estadisticas()
+        tk.Label(m, text=f"◈ {est['conocimiento']} cosas sobre ti  ·  {est['ordenes']} órdenes aprendidas  ·  "
+                         f"{est['lecciones']} lecciones  ·  {est['conversaciones']} conversaciones",
+                 fg="#c49bff", bg=FONDO, font=("Consolas", 9, "bold")).pack(anchor="w")
+        self._nota(m, "JARVIS aprende solo mientras hablan. Aquí puedes ver, corregir o enseñarle cosas directamente.")
+
+        self._titulo(m, "LO QUE SÉ DE TI")
+        datos = mem.todo_el_conocimiento()
+        lb_dato = self._lista(m, [f"({d['tipo']}) {d['texto']}" for d in datos] or ["(todavía nada)"], 4)
+        fila = tk.Frame(m, bg=FONDO)
+        fila.pack(fill="x", pady=(6, 0))
+        nuevo = tk.StringVar()
+        tk.Entry(fila, textvariable=nuevo, width=38, bg=PANEL, fg=TEXTO, insertbackground=C, relief="flat",
+                 font=("Segoe UI", 10), highlightthickness=1, highlightbackground=TENUE,
+                 highlightcolor=C).pack(side="left", ipady=4)
+
+        def ensenar():
+            texto = nuevo.get().strip()
+            if texto and mem.aprender(texto, "dato", "centro de control"):
+                datos.insert(0, {"id": None, "tipo": "dato", "texto": texto})
+                if lb_dato.get(0) == "(todavía nada)":
+                    lb_dato.delete(0)
+                lb_dato.insert(0, f"(dato) {texto}")
+            nuevo.set("")
+
+        def olvidar():
+            sel = lb_dato.curselection()
+            if sel and sel[0] < len(datos):
+                d = datos.pop(sel[0])
+                if d["id"] is None:
+                    mem.olvidar(d["texto"])
+                else:
+                    mem.borrar_conocimiento(d["id"])
+                lb_dato.delete(sel[0])
+        self._boton(fila, "ENSEÑARLE", ensenar).pack(side="left", padx=8)
+        self._boton(fila, "OLVIDAR SELECCIONADO", olvidar).pack(side="left")
+
+        self._titulo(m, "ÓRDENES QUE APRENDÍ")
+        ordenes = [("patron", p["frase"], f"{p['frase']}  →  {self._resumen_acciones(p['acciones'])}  ({p['veces']} veces)")
+                   for p in mem.patrones()]
         cmds = self.j.alm_comandos
-        claves = list(cmds.datos)
-        lb_cmd = self._lista(m, [f"{k}  →  {', '.join(a.get('tipo', '?') for a in v)}" for k, v in cmds.datos.items()], 4)
+        ordenes += [("comando", k, f"{k}  →  {self._resumen_acciones(v)}  (me lo enseñaste)") for k, v in cmds.datos.items()]
+        lb_ord = self._lista(m, [o[2] for o in ordenes] or ["(todavía ninguna: pídeme algo dos veces)"], 3)
 
-        def borrar_cmd():
-            sel = lb_cmd.curselection()
-            if sel:
-                cmds.datos.pop(claves.pop(sel[0]), None)
-                cmds.guardar()
-                lb_cmd.delete(sel[0])
-        self._boton(m, "BORRAR COMANDO", borrar_cmd).pack(anchor="w", pady=(6, 0))
-        self._titulo(m, "LISTAS")
-        listas = self.j.alm_listas
-        resumen = [f"{n}: {', '.join(v[:8]) or '(vacía)'}" for n, v in listas.datos.items()]
-        self._lista(m, resumen, 3)
+        def olvidar_orden():
+            sel = lb_ord.curselection()
+            if sel and sel[0] < len(ordenes):
+                tipo, clave, _ = ordenes.pop(sel[0])
+                if tipo == "patron":
+                    mem.desactivar_patron(clave)
+                else:
+                    cmds.datos.pop(clave, None)
+                    cmds.guardar()
+                lb_ord.delete(sel[0])
+        self._boton(m, "OLVIDAR ORDEN", olvidar_orden).pack(anchor="w", pady=(6, 0))
 
-    def _borrar(self, lb, datos, almacen):
-        sel = lb.curselection()
-        if sel:
-            datos.pop(sel[0])
-            almacen.guardar()
-            lb.delete(sel[0])
+        self._titulo(m, "LO QUE TE ENSEÑÉ")
+        lecciones = mem.lecciones(None, 100)
+        lb_lec = self._lista(m, [f"{l['fecha'][:10]} · {l['tema']}: {l['contenido']}" for l in lecciones]
+                             or ["(todavía nada: pregúntame lo que quieras aprender)"], 3)
+
+        def borrar_leccion():
+            sel = lb_lec.curselection()
+            if sel and sel[0] < len(lecciones):
+                mem.borrar_leccion(lecciones.pop(sel[0])["id"])
+                lb_lec.delete(sel[0])
+        self._boton(m, "BORRAR LECCIÓN", borrar_leccion).pack(anchor="w", pady=(6, 0))
+
+    @staticmethod
+    def _resumen_acciones(acciones):
+        if isinstance(acciones, str):
+            try:
+                acciones = json.loads(acciones)
+            except ValueError:
+                return acciones
+        return ", ".join(f"{a.get('tipo', '?')} {a.get('valor', '')}".strip() for a in acciones)
 
     def _celular(self, m):
         enlace = self.j.enlace
