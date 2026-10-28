@@ -10,8 +10,9 @@ import os, re, sys, time, random, socket, datetime, threading, webbrowser
 
 from config import (VERSION, ICONO, DATOS, ES_WINDOWS, Almacen, cargar_config, guardar_config, ruta, normalizar, log)
 from cerebro import Cerebro
-from habilidades import Habilidades, DIAS, MESES, hora_hablada
-from rapido import Reflejos
+from habilidades import Habilidades, DIAS, MESES, hora_hablada, ventana_activa
+from rapido import Reflejos, clave_orden
+from memoria import Memoria
 from hud import HUD
 from bandeja import iniciar_bandeja, iniciar_atajos
 import servidor
@@ -27,20 +28,9 @@ CALLAR = {"callate", "silencio", "para", "detente", "basta", "stop", "ya callate
 SI = {"si", "claro", "dale", "hazlo", "confirmo", "adelante", "ok", "okay", "afirmativo", "por supuesto", "correcto",
       "envialo", "procede", "de acuerdo", "obvio", "ya"}
 
-
-def ventana_activa():
-    if not ES_WINDOWS:
-        return ""
-    try:
-        import ctypes
-        u = ctypes.windll.user32
-        h = u.GetForegroundWindow()
-        n = u.GetWindowTextLengthW(h)
-        buf = ctypes.create_unicode_buffer(n + 1)
-        u.GetWindowTextW(h, buf, n + 1)
-        return buf.value
-    except Exception:
-        return ""
+# "no, así no", "eso no era", "te equivocaste": la última orden aprendida estaba mal y se olvida
+CORRECCION = re.compile(r"^(no+ )*(asi no|eso no|no era eso|no es eso|eso no era|eso no es|te equivocaste|"
+                        r"lo hiciste mal|esta mal|no queria eso|no te pedi eso|eso no te pedi|no era lo que (te )?pedi)\b")
 
 
 def extraer_orden(texto, palabras):
@@ -60,7 +50,7 @@ def extraer_orden(texto, palabras):
 class Jarvis:
     def __init__(self):
         self.cfg = cargar_config()
-        self.alm_memoria = Almacen("memoria.json", [])
+        self.memoria = Memoria()          # base de datos donde JARVIS y tú aprenden juntos
         self.alm_comandos = Almacen("comandos.json", {})
         self.alm_listas = Almacen("listas.json", {"notas": [], "tareas": [], "compras": []})
         self.alm_recordatorios = Almacen("recordatorios.json", [])
@@ -70,6 +60,9 @@ class Jarvis:
         self.cargando_cerebro = True
         self.actualizacion = None
         self.en_conversacion = False
+        self.ultimo_patron = None         # (frase, hora) de la última orden aprendida que se ejecutó sola
+        self.ultimo_registro = None       # (frase, hora) de la última orden que se anotó para aprender
+        self.ultima_frase = ""
         self.oido = None
         self.voz = None
         self.bandeja = None
@@ -98,10 +91,18 @@ class Jarvis:
         ]
         self.opciones = opciones
         self.hud = HUD(self.cfg, ICONO, al_clic=self.clic_reactor, menu=opciones)
-        self.cerebro = Cerebro(self.cfg, self.alm_memoria)
+        self.cerebro = Cerebro(self.cfg, self.memoria)
+        self._retomar_conversacion()
         self.hab = Habilidades(self.cfg, self)
-        self.reflejos = Reflejos(self.cfg, self.alm_comandos, self.hab.apps)
+        self.reflejos = Reflejos(self.cfg, self.alm_comandos, self.hab.apps, self.memoria)
         self.enlace = servidor.Enlace(self)
+
+    def _retomar_conversacion(self):
+        try:
+            desde = (datetime.datetime.now() - datetime.timedelta(hours=12)).isoformat(timespec="seconds")
+            self.cerebro.retomar([c for c in self.memoria.ultimas_conversaciones(5) if c["fecha"] >= desde])
+        except Exception as e:
+            log.warning("No pude retomar la conversación: %s", e)
 
     @property
     def trato(self):
@@ -469,7 +470,10 @@ class Jarvis:
         if n in DESPEDIDAS:
             self.decir(random.choice(["A su servicio, {t}.", "Un placer, {t}.", "Para eso estoy."]).format(t=self.trato))
             return "fin"
+        if self._corregir(orden, n):
+            return
         plan = self.reflejos.interpretar(orden)
+        de_la_ia = plan is None
         if plan is None:
             if not self.cerebro.modelo:
                 if self.cargando_cerebro:
@@ -479,14 +483,86 @@ class Jarvis:
                     self.decir(f"Mi núcleo de inteligencia no está conectado, {self.trato}. Haga clic derecho en el reactor "
                                "y elija Clave de Groq o Clave de Gemini.")
                 return
-            plan = self.cerebro.pensar(orden, self.contexto())
-        return self.ejecutar_plan(plan)
+            plan = self.cerebro.pensar(orden, self.contexto(orden))
+        else:
+            self.cerebro.anotar(orden, plan)
+            if plan.get("patron"):
+                self.ultimo_patron = (plan["patron"], time.time())
+        dicho = []
+        resultado = self.ejecutar_plan(plan, dicho=dicho)
+        if de_la_ia:
+            self._aprender_orden(orden, plan)
+        self._anotar_conversacion(orden, plan, dicho, origen, self.cerebro.ultimo_motor if de_la_ia else "reflejo")
+        return resultado
 
-    def ejecutar_plan(self, plan, ronda=0):
+    # ================================================================ aprendizaje mutuo
+    def _corregir(self, orden, n):
+        """«No, así no»: olvida la orden aprendida que acaba de hacer. Devuelve True si ya respondió."""
+        m = CORRECCION.match(n)
+        if not m:
+            return False
+        olvide = False
+        for ref in (self.ultimo_patron, self.ultimo_registro):
+            if ref and time.time() - ref[1] < 60:
+                self.memoria.desactivar_patron(ref[0])
+                olvide = True
+        self.ultimo_patron = self.ultimo_registro = None
+        if olvide:
+            self.hud.registrar("MEMORIA", "Olvidé la última orden aprendida")
+        if olvide and len(n[m.end():].strip()) < 3:
+            texto = f"Entendido, {self.trato}: no lo volveré a hacer así. ¿Qué quería que hiciera?"
+            self.decir(texto)
+            self._anotar_conversacion(orden, {"acciones": []}, [texto], None, "reflejo")
+            return True
+        return False                       # la IA ve el historial y entiende qué corregir
+
+    def _aprender_orden(self, orden, plan):
+        acciones = plan.get("acciones") or []
+        if not acciones:
+            return
+        clave = clave_orden(orden)
+        try:
+            aprendida = self.memoria.registrar_patron(clave, acciones, plan.get("respuesta", ""))
+        except Exception as e:
+            log.warning("No pude anotar la orden: %s", e)
+            return
+        self.ultimo_registro = (clave, time.time())
+        if aprendida:
+            self.hud.registrar("MEMORIA", f"Aprendí la orden «{orden}»")
+            if not servidor.es_remoto() or servidor.hablar_en_pc():
+                self.decir(f"Por cierto, {self.trato}, ya aprendí esa orden: la próxima vez será al instante.", registrar=False)
+
+    def _guardar_aprendizaje(self, plan):
+        for a in plan.get("aprendi") or []:
+            try:
+                if self.memoria.aprender(a["texto"], a.get("tipo", "dato"), "conversación"):
+                    self.hud.registrar("MEMORIA", "Aprendí: " + a["texto"])
+            except Exception as e:
+                log.warning("No pude guardar lo aprendido: %s", e)
+        leccion = plan.get("leccion")
+        if leccion:
+            try:
+                self.memoria.agregar_leccion(leccion["tema"], leccion["resumen"])
+                self.hud.registrar("MEMORIA", "Lección guardada: " + leccion["tema"])
+            except Exception as e:
+                log.warning("No pude guardar la lección: %s", e)
+
+    def _anotar_conversacion(self, orden, plan, dicho, origen, motor):
+        try:
+            self.memoria.registrar_conversacion(orden, " ".join(dicho), plan.get("acciones"),
+                                                origen or ("celular" if servidor.es_remoto() else "voz"), motor or "")
+        except Exception as e:
+            log.warning("No pude guardar la conversación: %s", e)
+
+    def ejecutar_plan(self, plan, ronda=0, dicho=None):
+        dicho = [] if dicho is None else dicho
+        self._guardar_aprendizaje(plan)
         respuesta = (plan.get("respuesta") or "").strip()
         if ronda == 0 and not respuesta and not plan.get("acciones"):
             self.decir(f"Disculpe, {self.trato}, ¿podría repetirlo?")
             return
+        if respuesta:
+            dicho.append(respuesta)
         hilo = None
         if respuesta:
             if servidor.es_remoto():
@@ -506,16 +582,19 @@ class Jarvis:
         if hilo:
             hilo.join()
         for d in decires:
+            dicho.append(d)
             self.decir(d)
         if salir:
             return "salir"
         if infos:
             if self.cerebro.modelo and ronda < 2:
                 self.hud.estado("PROCESANDO", "Analizando resultados...")
-                return self.ejecutar_plan(self.cerebro.pensar("", resultados="\n\n".join(infos)), ronda + 1)
-            self.decir(re.sub(r"^\[[^\]]+\]\s*", "", infos[0])[:300])
+                return self.ejecutar_plan(self.cerebro.pensar("", resultados="\n\n".join(infos)), ronda + 1, dicho)
+            texto = re.sub(r"^\[[^\]]+\]\s*", "", infos[0])[:300]
+            dicho.append(texto)
+            self.decir(texto)
 
-    def contexto(self):
+    def contexto(self, consulta=""):
         ahora = datetime.datetime.now()
         fecha = f"{DIAS[ahora.weekday()]} {ahora.day} de {MESES[ahora.month - 1]} de {ahora.year}, {ahora:%H:%M}"
         partes = [f"Contexto: hoy es {fecha}", f"ciudad del usuario: {self.cfg.get('ciudad', '')}"]
@@ -534,9 +613,15 @@ class Jarvis:
         if c.modelo_gemini:
             nucleo += f", Gemini {c.modelo_gemini} como respaldo y visión"
         partes.append(nucleo)
-        mem = self.alm_memoria.datos[-25:]
-        if mem:
-            partes.append("memoria del usuario: " + "; ".join(mem))
+        try:
+            sabe = self.memoria.relevantes(consulta, 12)
+            if sabe:
+                partes.append("lo que sabes del usuario (tu memoria): " + "; ".join(sabe))
+            temas = [l["tema"] for l in self.memoria.lecciones(None, 6)]
+            if temas:
+                partes.append("temas que ya le enseñaste: " + ", ".join(temas))
+        except Exception as e:
+            log.warning("No pude leer la memoria: %s", e)
         aprendidos = list(self.alm_comandos.datos)[:15]
         if aprendidos:
             partes.append("comandos aprendidos (usa la acción rutina con su nombre): " + ", ".join(aprendidos))
@@ -547,6 +632,7 @@ class Jarvis:
         if not texto:
             return
         remoto = servidor.capturar(texto)
+        self.ultima_frase = texto
         if registrar:
             self.hud.registrar("JARVIS", texto)
         if remoto and not servidor.hablar_en_pc():
