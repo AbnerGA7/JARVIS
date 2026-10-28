@@ -33,7 +33,8 @@ APPS Y WEB
 - abrir_web: sitio conocido ("youtube", "gmail") o URL
 - buscar_google: texto a buscar en Google
 - buscar_youtube: texto a buscar en YouTube
-- reproducir: canción, artista o video para reproducir de inmediato
+- reproducir: canción, artista, playlist o video para reproducir de inmediato. Campo opcional "app": "spotify" o "youtube"
+  (pon "spotify" si el usuario menciona Spotify o prefiere escuchar ahí; "youtube" para videos, tutoriales y trailers)
 - abrir_carpeta: descargas, documentos, escritorio, imágenes, música, videos, papelera, este equipo o una ruta
 - buscar_archivo: nombre (o parte) de un archivo de la PC  [CONSULTA]
 - abrir_archivo: ruta del archivo, o el número de un resultado de buscar_archivo
@@ -105,9 +106,11 @@ APRENDIZAJE MUTUO (tú y el usuario aprenden juntos; todo se guarda en tu memori
 SOBRE TI (responde con esto si te preguntan cómo funcionas; nunca digas que no tienes una función de esta lista)
 - Te activan: diciendo "Jarvis", con DOS APLAUSOS seguidos, con Ctrl+Alt+J o con clic en el reactor. Ctrl+Alt+S te calla.
 - Si los aplausos no funcionan: abre ajustes_audio (ahí está la prueba de aplausos y su sensibilidad) y explica que suba la sensibilidad.
-- Tienes Centro de control (centro_control), app Android vinculada (conectar_celular), memoria, recordatorios, rutinas,
-  comandos aprendidos, visión de pantalla con Gemini, te inicias con Windows y te actualizas solo (actualizar).
-- Tu voz es Jorge (Microsoft, México): la misma en la PC y en el celular.
+- Tienes Centro de control (centro_control), app Android vinculada (conectar_celular), recordatorios, rutinas,
+  visión de pantalla con Gemini, lees páginas web (leer_pagina), te inicias con Windows y te actualizas solo (actualizar).
+- Tienes una base de datos de aprendizaje: lo que sabes del usuario (lo_aprendido), lo que le enseñaste (lecciones, repaso)
+  y las órdenes que repite, que aprendes solo para hacerlas al instante. Si te dice "así no", olvidas esa orden.
+- Tu voz es la que el usuario elija en el Centro de control (por defecto Jorge de Microsoft): la misma en la PC y en el celular.
 
 REGLAS
 1. Si te pide hacer algo y existe una acción para ello, hazlo. Nunca digas que no puedes si hay una acción que sirve.
@@ -116,7 +119,8 @@ REGLAS
 4. Para conversación, cultura general, chistes, consejos, traducciones o explicaciones, responde tú mismo con "acciones": [].
 5. Puedes encadenar varias acciones en orden.
 6. Si la orden es ambigua, haz una pregunta breve.
-7. Usa la memoria y el contexto que se te dan; si el usuario te cuenta algo personal importante, guárdalo con recordar_dato.
+7. Usa la memoria y el contexto que se te dan. Si te pide explícitamente que recuerdes algo usa recordar_dato;
+   lo demás que descubras de él anótalo en "aprendi".
 
 ACCIONES DISPONIBLES (tipo: valor)
 {acciones}"""
@@ -589,6 +593,24 @@ class Cerebro:
         self.historial.append({"role": "assistant", "content": json.dumps(plan, ensure_ascii=False)})
         self.historial = self.historial[-30:]
         return plan
+
+    def anotar(self, orden, plan):
+        """Las órdenes que resolvieron los reflejos también entran al hilo, para que "ciérralo" sepa de qué hablas."""
+        self.historial.append({"role": "user", "content": orden})
+        self.historial.append({"role": "assistant", "content": json.dumps(
+            {"respuesta": plan.get("respuesta", ""), "acciones": plan.get("acciones", [])}, ensure_ascii=False)})
+        self.historial = self.historial[-30:]
+
+    def retomar(self, conversaciones):
+        """Al arrancar recupera lo último que hablaron (aunque hayas reiniciado la PC)."""
+        for c in conversaciones:
+            try:
+                acciones = json.loads(c.get("acciones") or "[]")
+            except ValueError:
+                acciones = []
+            self.historial.append({"role": "user", "content": c.get("usuario", "")})
+            self.historial.append({"role": "assistant", "content": json.dumps(
+                {"respuesta": c.get("jarvis", ""), "acciones": acciones}, ensure_ascii=False)})
 
     def _preguntar(self, mensajes):
         """Groq (70B → 8B) y, si falla o se acaba el límite, Gemini. Sin Groq: Gemini u Ollama."""
