@@ -15,6 +15,7 @@ from rapido import Reflejos
 from hud import HUD
 from bandeja import iniciar_bandeja, iniciar_atajos
 import servidor
+import arranque
 
 PUERTO_UNICO = 47653
 SALUDOS_ESCUCHA = ["¿Sí, {t}?", "A sus órdenes.", "Le escucho, {t}.", "Dígame, {t}.", "¿En qué le ayudo?"]
@@ -78,6 +79,8 @@ class Jarvis:
             ("Conectar celular", self.conectar_celular),
             ("Desvincular celulares", self.desvincular_celulares),
             ("Micrófono y parlantes", self.abrir_ajustes_audio),
+            (lambda: ("✓ " if self.cfg.get("iniciar_con_windows", True) else "    ") + "Iniciar con Windows",
+             self.alternar_inicio_windows),
             ("Clave de Groq (cerebro en la nube)", self.cambiar_clave),
             ("Clave de Gemini (respaldo y visión)", self.cambiar_clave_gemini),
             ("Configuración", lambda: os.startfile(ruta("config.json"))),
@@ -108,8 +111,9 @@ class Jarvis:
         from voz import Voz
         try:
             from oido import Oido
-            self.oido = Oido(self.cfg, al_aplaudir=self.activar,
+            self.oido = Oido(self.cfg, al_aplaudir=self._doble_aplauso,
                              al_nivel=lambda n: setattr(self.hud, "nivel_mic", n))
+            self.oido.al_aplauso_suelto = lambda: self.hud.aplauso("suelto")
             self.oido.iniciar()
         except Exception as e:
             self.oido = None
@@ -121,6 +125,8 @@ class Jarvis:
             log.error("Sin voz: %s", e)
         self.bandeja = iniciar_bandeja(ICONO, self.opciones)
         iniciar_atajos(self.cfg, self.activar, self.callar)
+        if self.cfg.get("iniciar_con_windows", True):
+            arranque.activar()           # se renueva en cada inicio por si JARVIS cambió de carpeta
         if self.cfg.get("enlace_celular", True):
             self.enlace.iniciar()
         threading.Thread(target=self._preparar_cerebro, daemon=True).start()
@@ -221,9 +227,11 @@ class Jarvis:
     # ================================================================ micrófono y parlantes
     def abrir_ajustes_audio(self):
         from audio import listar_microfonos, listar_parlantes
+        self._sensibilidad_antes = self.cfg.get("sensibilidad_aplauso", 0.35)
         self.hud.ajustes_audio(listar_microfonos(), listar_parlantes(), self.cfg.get("microfono", ""),
                                self.cfg.get("parlantes", ""), self._probar_microfono, self._probar_parlantes,
-                               self._guardar_audio)
+                               self._guardar_audio, self._sensibilidad_antes,
+                               lambda u: self.cfg.__setitem__("sensibilidad_aplauso", u))
 
     def _probar_microfono(self, nombre):
         """Cambia de micrófono en vivo para que la barra de la ventana muestre si te escucha."""
@@ -255,6 +263,15 @@ class Jarvis:
         if guardar:
             guardar_config(self.cfg)
             self.hud.registrar("JARVIS", "Ajustes de audio guardados.")
+        else:
+            self.cfg["sensibilidad_aplauso"] = getattr(self, "_sensibilidad_antes", self.cfg.get("sensibilidad_aplauso", 0.35))
+
+    def alternar_inicio_windows(self):
+        activo = not self.cfg.get("iniciar_con_windows", True)
+        self.cfg["iniciar_con_windows"] = activo
+        guardar_config(self.cfg)
+        arranque.activar() if activo else arranque.desactivar()
+        self.hud.registrar("JARVIS", "Me iniciaré al encender la PC." if activo else "Ya no me iniciaré con Windows.")
 
     def cambiar_clave_gemini(self):
         threading.Thread(target=self._conectar_gemini, kwargs={"forzar_dialogo": True}, daemon=True).start()
@@ -519,6 +536,11 @@ class Jarvis:
         self.hud.silencio(self.silencio)
 
     # ================================================================ controles
+    def _doble_aplauso(self):
+        self.hud.aplauso("doble")
+        if not self.hud.probando_aplausos:      # en la prueba de aplausos solo se muestra, no se activa
+            self.activar()
+
     def activar(self):
         if self.voz and self.voz.hablando:
             self.voz.detener()
@@ -575,7 +597,7 @@ def autoprueba(archivo):
     modulos = ["config", "cerebro", "habilidades", "rapido", "hud", "bandeja", "oido", "voz", "audio",
                "numpy", "requests", "sounddevice", "speech_recognition", "pygame", "edge_tts", "pyttsx3", "pyautogui",
                "pyperclip", "psutil", "pycaw.pycaw", "comtypes", "screen_brightness_control", "pystray", "PIL.Image",
-               "keyboard", "ddgs", "certifi", "tkinter", "cryptography.hazmat.primitives.ciphers.aead", "servidor", "tunel"]
+               "keyboard", "ddgs", "certifi", "tkinter", "cryptography.hazmat.primitives.ciphers.aead", "servidor", "tunel", "arranque"]
     for m in modulos:
         try:
             importlib.import_module(m)

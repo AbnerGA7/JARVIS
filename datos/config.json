@@ -141,5 +141,6 @@
   },
   "enlace_celular": true,
   "compartir_clave_con_celular": true,
-  "acceso_remoto": true
+  "acceso_remoto": true,
+  "iniciar_con_windows": true
 }
