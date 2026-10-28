@@ -24,8 +24,23 @@ class Voz:
         self.hablando = False
         import pygame
         self.pg = pygame
-        pygame.mixer.pre_init(24000, -16, 1, 1024)
-        pygame.mixer.init()
+        self.abrir_salida(cfg.get("parlantes", ""))
+
+    def abrir_salida(self, nombre=""):
+        """Abre los parlantes elegidos (o los predeterminados de Windows si no están conectados)."""
+        pg = self.pg
+        with self.lock:
+            if pg.mixer.get_init():
+                pg.mixer.quit()
+            try:
+                if nombre:
+                    pg.mixer.init(24000, -16, 1, 1024, devicename=nombre)
+                    log.info("Parlantes: %s", nombre)
+                    return True
+            except Exception as e:
+                log.warning("No pude abrir los parlantes '%s' (%s); uso los predeterminados", nombre, e)
+            pg.mixer.init(24000, -16, 1, 1024)
+            return not nombre
 
     # ------------------------------------------------------------ API
     def decir(self, texto):
