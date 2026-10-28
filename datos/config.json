@@ -1,11 +1,24 @@
 {
   "trato": "señor",
   "nombre_usuario": "",
-  "palabras_activacion": ["jarvis", "yarvis", "jarbis", "jarvi", "charvis", "jervis", "harvis", "jarvas"],
+  "palabras_activacion": [
+    "jarvis",
+    "yarvis",
+    "jarbis",
+    "jarvi",
+    "charvis",
+    "jervis",
+    "harvis",
+    "jarvas"
+  ],
   "voz": "es-MX-JorgeNeural",
   "velocidad_voz": "+8%",
   "tono_voz": "-6Hz",
   "idioma_reconocimiento": "es-PE",
+  "proveedor": "groq",
+  "groq_api_key": "",
+  "modelo_groq": "llama-3.3-70b-versatile",
+  "modelo_groq_respaldo": "llama-3.1-8b-instant",
   "modelo": "auto",
   "modelo_vision": "moondream",
   "temperatura": 0.4,
@@ -69,23 +82,56 @@
   },
   "rutinas": {
     "modo gamer": [
-      {"tipo": "abrir_app", "valor": "steam"},
-      {"tipo": "abrir_app", "valor": "discord"},
-      {"tipo": "volumen", "valor": "70"}
+      {
+        "tipo": "abrir_app",
+        "valor": "steam"
+      },
+      {
+        "tipo": "abrir_app",
+        "valor": "discord"
+      },
+      {
+        "tipo": "volumen",
+        "valor": "70"
+      }
     ],
     "modo estudio": [
-      {"tipo": "reproducir", "valor": "lofi hip hop para estudiar"},
-      {"tipo": "volumen", "valor": "30"},
-      {"tipo": "abrir_web", "valor": "classroom"}
+      {
+        "tipo": "reproducir",
+        "valor": "lofi hip hop para estudiar"
+      },
+      {
+        "tipo": "volumen",
+        "valor": "30"
+      },
+      {
+        "tipo": "abrir_web",
+        "valor": "classroom"
+      }
     ],
     "modo trabajo": [
-      {"tipo": "abrir_web", "valor": "gmail"},
-      {"tipo": "abrir_app", "valor": "visual studio code"}
+      {
+        "tipo": "abrir_web",
+        "valor": "gmail"
+      },
+      {
+        "tipo": "abrir_app",
+        "valor": "visual studio code"
+      }
     ],
     "buenas noches": [
-      {"tipo": "media", "valor": "pausa"},
-      {"tipo": "brillo", "valor": "20"},
-      {"tipo": "volumen", "valor": "15"}
+      {
+        "tipo": "media",
+        "valor": "pausa"
+      },
+      {
+        "tipo": "brillo",
+        "valor": "20"
+      },
+      {
+        "tipo": "volumen",
+        "valor": "15"
+      }
     ]
   }
 }
