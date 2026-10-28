@@ -2,13 +2,13 @@
 """
  ╦╔═╗╦═╗╦  ╦╦╔═╗
  ║╠═╣╠╦╝╚╗╔╝║╚═╗   J.A.R.V.I.S. 2.0 — Asistente de voz para Windows
-╚╝╩ ╩╩╚═ ╚╝ ╩╚═╝   Cerebro local y gratuito (Ollama) · Voz neural · HUD holográfico
+╚╝╩ ╩╩╚═ ╚╝ ╩╚═╝   Cerebro en la nube (Groq, gratis) · Voz neural · HUD holográfico
 
 Se activa diciendo "Jarvis ...", aplaudiendo dos veces, con Ctrl+Alt+J o haciendo clic en el reactor.
 """
 import os, re, sys, time, random, socket, datetime, threading, webbrowser
 
-from config import (VERSION, ICONO, DATOS, ES_WINDOWS, Almacen, cargar_config, ruta, normalizar, log)
+from config import (VERSION, ICONO, DATOS, ES_WINDOWS, Almacen, cargar_config, guardar_config, ruta, normalizar, log)
 from cerebro import Cerebro
 from habilidades import Habilidades, DIAS, MESES, hora_hablada
 from rapido import Reflejos
@@ -74,6 +74,7 @@ class Jarvis:
             (lambda: "Activar micrófono" if self.silencio else "Silenciar micrófono", self.alternar_silencio),
             (lambda: "Ocultar el reactor" if self.cfg.get("mostrar_orbe", True) else "Mostrar el reactor", self.alternar_orbe),
             ("-", None),
+            ("Clave de Groq (cerebro en la nube)", self.cambiar_clave),
             ("Configuración", lambda: os.startfile(ruta("config.json"))),
             ("Entrenar (mis ejemplos)", lambda: os.startfile(ruta("mis_ejemplos.json"))),
             ("Recargar configuración", self.recargar),
@@ -125,27 +126,67 @@ class Jarvis:
 
     def _preparar_cerebro(self):
         try:
-            if not self.cerebro.encender():
-                if not self.cerebro.ruta_ollama():
-                    self.hud.alerta("Falta Ollama (el cerebro). Instálalo desde ollama.com y reinicia JARVIS.")
-                    self.decir(f"{self.trato.capitalize()}, para pensar necesito Ollama. Le abro la página de descarga; "
-                               "mientras tanto puedo abrir programas y controlar su música.")
-                    webbrowser.open("https://ollama.com/download/windows")
-                else:
-                    self.hud.alerta("Ollama no responde. Ábrelo manualmente.")
-                return
-            antes = self.cerebro.modelo_ideal() in [m.split(":latest")[0] for m in self.cerebro.modelos_instalados()] or \
-                self.cerebro.modelo_ideal() in self.cerebro.modelos_instalados()
-            if not antes:
-                self.decir(f"Descargando mi núcleo de inteligencia por primera vez, {self.trato}. "
-                           "Tardará unos minutos; puede seguir dándome órdenes sencillas mientras tanto.")
-            modelo = self.cerebro.preparar(progreso=self.hud.progreso)
-            if modelo and not antes:
-                self.decir(f"Núcleo de inteligencia en línea. Ahora puedo hacer cualquier cosa que me pida, {self.trato}.")
+            if self.cerebro.usar_nube():
+                self._conectar_groq()
+            else:
+                self._preparar_ollama()
         except Exception as e:
             log.exception("Error preparando el cerebro: %s", e)
         finally:
             self.cargando_cerebro = False
+
+    def _conectar_groq(self, forzar_dialogo=False):
+        """Conecta el cerebro en la nube. Si no hay clave (o no sirve), muestra la ventana para pegarla."""
+        ok, msg = (False, "") if forzar_dialogo else self.cerebro.preparar_nube()
+        pidio = False
+        primera = not self.cerebro.clave_groq()
+        while not ok and self.ejecutando:
+            if msg.startswith("Sin conexión"):
+                self.hud.alerta("Sin internet: no puedo conectar mi cerebro en la nube. Reintentando...")
+                time.sleep(15)
+                ok, msg = self.cerebro.preparar_nube()
+                continue
+            error = None if (primera and not pidio) else (msg or None)
+            if primera and not pidio:
+                threading.Thread(target=self.decir, daemon=True, args=(
+                    f"{self.trato.capitalize()}, para activar mi núcleo de inteligencia necesito su clave "
+                    "gratuita de Groq. Le abrí una ventana para pegarla.",)).start()
+            pidio = True
+            clave = self.hud.pedir_clave(error)
+            if clave is None:
+                self.hud.alerta("Sin clave de Groq: solo puedo hacer órdenes simples. "
+                                "Clic derecho en el reactor → Clave de Groq.")
+                return False
+            ok, msg = self.cerebro.probar_groq(clave)
+            if ok:
+                self.cfg["groq_api_key"] = clave.strip()
+                guardar_config(self.cfg)
+                ok, msg = self.cerebro.preparar_nube()
+        if ok and pidio:
+            self.hud.registrar("JARVIS", "Núcleo en la nube conectado.")
+            self.decir(f"Núcleo de inteligencia en la nube conectado. Ahora puedo hacer cualquier cosa que me pida, {self.trato}.")
+        return ok
+
+    def cambiar_clave(self):
+        threading.Thread(target=self._conectar_groq, kwargs={"forzar_dialogo": True}, daemon=True).start()
+
+    def _preparar_ollama(self):
+        if not self.cerebro.encender():
+            if not self.cerebro.ruta_ollama():
+                self.hud.alerta("Falta Ollama (el cerebro local). Instálalo desde ollama.com o usa Groq.")
+                webbrowser.open("https://ollama.com/download/windows")
+            else:
+                self.hud.alerta("Ollama no responde. Ábrelo manualmente.")
+            return
+        antes = self.cerebro.modelo_ideal() in [m.split(":latest")[0] for m in self.cerebro.modelos_instalados()] or \
+            self.cerebro.modelo_ideal() in self.cerebro.modelos_instalados()
+        if not antes:
+            self.decir(f"Descargando mi núcleo de inteligencia por primera vez, {self.trato}. "
+                       "Tardará unos minutos; puede seguir dándome órdenes sencillas mientras tanto.")
+        self.cerebro.motor = "ollama"
+        modelo = self.cerebro.preparar(progreso=self.hud.progreso)
+        if modelo and not antes:
+            self.decir(f"Núcleo de inteligencia en línea. Ahora puedo hacer cualquier cosa que me pida, {self.trato}.")
 
     def _vigilar_clima(self):
         while self.ejecutando:
@@ -274,7 +315,8 @@ class Jarvis:
                     self.decir(f"Mi núcleo de inteligencia aún se está cargando, {self.trato}. Mientras tanto puedo abrir "
                                "aplicaciones y páginas, controlar el volumen y la música.")
                 else:
-                    self.decir(f"Mi núcleo de inteligencia no está disponible, {self.trato}. Revise que Ollama esté instalado.")
+                    self.decir(f"Mi núcleo de inteligencia no está conectado, {self.trato}. Haga clic derecho en el reactor "
+                               "y elija Clave de Groq.")
                 return
             plan = self.cerebro.pensar(orden, self.contexto())
         return self.ejecutar_plan(plan)
