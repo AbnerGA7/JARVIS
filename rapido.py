@@ -10,26 +10,31 @@ OK = ["Enseguida, {t}.", "Hecho.", "Como ordene, {t}.", "Al instante.", "Listo, 
 
 # (patrón sobre texto normalizado, constructor de acciones)
 REGLAS = [
-    (r"^(que hora es|dime la hora|la hora)$", lambda m: [{"tipo": "hora", "valor": ""}]),
-    (r"^(que (dia|fecha) es( hoy)?|dime la fecha|la fecha)$", lambda m: [{"tipo": "fecha", "valor": ""}]),
+    (r"^((me )?(dices|digas|dime|das|des) )?(que hora es|la hora( que es)?|hora)( ahora)?$", lambda m: [{"tipo": "hora", "valor": ""}]),
+    (r"^((me )?(dices|digas|dime) )?(que (dia|fecha) es( hoy)?|la fecha( de hoy)?|que dia es hoy)$",
+     lambda m: [{"tipo": "fecha", "valor": ""}]),
     (r"^(pausa|pon pausa|pausa la musica|pausa el video|continua|reanuda|play|dale play|sigue la musica)$",
      lambda m: [{"tipo": "media", "valor": "pausa"}]),
     (r"^(siguiente|siguiente cancion|pasa la cancion|cambia la cancion|otra cancion)$",
      lambda m: [{"tipo": "media", "valor": "siguiente"}]),
     (r"^(anterior|cancion anterior|regresa la cancion)$", lambda m: [{"tipo": "media", "valor": "anterior"}]),
-    (r"^(sube|subele|aumenta)( el| al)? volumen$", lambda m: [{"tipo": "volumen", "valor": "subir"}]),
-    (r"^(baja|bajale|disminuye)( el| al)? volumen$", lambda m: [{"tipo": "volumen", "valor": "bajar"}]),
+    (r"^(sube|subele|subir|subas|aumenta|aumentar)( el| al)? volumen$", lambda m: [{"tipo": "volumen", "valor": "subir"}]),
+    (r"^(baja|bajale|bajar|bajes|disminuye|disminuir)( el| al)? volumen$", lambda m: [{"tipo": "volumen", "valor": "bajar"}]),
     (r"^(silencia|silencio total|mutea|quita el sonido)( la pc| todo)?$", lambda m: [{"tipo": "volumen", "valor": "silenciar"}]),
-    (r"^(pon |sube |baja )?(el )?volumen (al|a|en) (\d{1,3})( por ciento)?$",
-     lambda m: [{"tipo": "volumen", "valor": m.group(4)}]),
-    (r"^(pon |sube |baja )?(el )?brillo (al|a|en) (\d{1,3})( por ciento)?$",
-     lambda m: [{"tipo": "brillo", "valor": m.group(4)}]),
+    (r"^((pon|poner|pongas|ponme|sube|subir|subas|baja|bajar|bajes|deja|dejes|cambia|cambiar) )?(el )?volumen "
+     r"(al|a|en) (\d{1,3})( por ciento)?$", lambda m: [{"tipo": "volumen", "valor": m.group(5)}]),
+    (r"^((pon|poner|pongas|ponme|sube|subir|subas|baja|bajar|bajes|deja|dejes|cambia|cambiar) )?(el )?brillo "
+     r"(al|a|en) (\d{1,3})( por ciento)?$", lambda m: [{"tipo": "brillo", "valor": m.group(5)}]),
     (r"^(toma|haz|saca) (una )?captura( de pantalla)?$", lambda m: [{"tipo": "captura", "valor": ""}]),
     (r"^(minimiza todo|muestra el escritorio|ve al escritorio)$", lambda m: [{"tipo": "ventana", "valor": "minimizar_todo"}]),
     (r"^(bloquea|bloquea la pc|bloquea la computadora|bloquea el equipo)$", lambda m: [{"tipo": "bloquear", "valor": ""}]),
 ]
 
-ABRIR = re.compile(r"^(abre|abreme|abrir|inicia|ejecuta|lanza|pon|entra a|entra en|ve a)\s+(el |la |los |las |mi )?(.+)$")
+ABRIR = re.compile(r"^(abre|abreme|abras|abrir|inicia|inicies|ejecuta|ejecutes|lanza|pon|entra a|entra en|ve a|vayas a)"
+                   r"\s+(el |la |los |las |mi )?(.+)$")
+# formas educadas de pedir algo: se quitan antes de buscar un reflejo
+CORTESIA = re.compile(r"^(oye |hey |ey |por favor |porfa )*((yo )?quiero que |necesito que |(me )?puedes |podrias |"
+                      r"(me )?podrias |seria posible que |te pido que |hazme el favor de |ayudame a )?")
 
 
 MULETILLAS = re.compile(r"^(por favor |oye |activa |activar |pon |ponme |inicia |ejecuta |haz |el |la |los |las |mi |un |una )+")
@@ -50,6 +55,7 @@ class Reflejos:
 
     def interpretar(self, orden):
         n = normalizar(orden)
+        n = CORTESIA.sub("", n, count=1).replace(" por favor", "").strip()
         if not n:
             return None
         # 1) comandos aprendidos
@@ -74,6 +80,6 @@ class Reflejos:
             if objetivo in sitios:
                 return {"respuesta": f"Abriendo {sitios[objetivo].title()}.",
                         "acciones": [{"tipo": "abrir_web", "valor": sitios[objetivo]}]}
-            if m.group(1) != "pon" and self.apps and self.apps.seguro(objetivo):
+            if m.group(1) not in ("pon",) and self.apps and self.apps.seguro(objetivo):
                 return {"respuesta": f"Abriendo {objetivo}.", "acciones": [{"tipo": "abrir_app", "valor": objetivo}]}
         return None
