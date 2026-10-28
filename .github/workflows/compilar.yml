@@ -86,10 +86,10 @@ jobs:
             3. Al abrir JARVIS por primera vez, pega tu clave gratis de **Groq** (y opcionalmente la de **Gemini**).
 
             ## Novedades
-            - Cerebro en la nube con Groq: elige solo el mejor modelo de tu cuenta.
-            - Gemini como respaldo automático y para ver tu pantalla.
-            - Ventana para elegir micrófono y parlantes (clic derecho en el reactor).
-            - Entiende frases como "quiero que me digas la hora" al instante.
-            - Enlace con la app JARVIS para Android, por WiFi o con datos móviles (clic derecho en el reactor → Conectar celular).
-            - Se inicia solo al encender la PC (desactivable desde el menú).
-            - Prueba de aplausos con sensibilidad ajustable (clic derecho → Micrófono y parlantes).
+            - Centro de control: toda la configuración en una ventana (voz, cerebro, memoria, celular).
+            - Actualizaciones automáticas: JARVIS avisa y se actualiza con un clic (o diciendo «actualízate»).
+            - Habla más rápido: empieza con la primera frase mientras prepara las siguientes.
+            - Entiende mejor tus órdenes con Whisper de Groq.
+            - Notificaciones de Windows para los recordatorios.
+            - «Jarvis, buenos días»: resumen con clima, recordatorios, tareas y noticias.
+            - Portapapeles compartido y «Compartir con JARVIS» desde el celular.
