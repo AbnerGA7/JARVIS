@@ -5,10 +5,10 @@ from PyInstaller.utils.hooks import collect_all
 datas = [("jarvis.ico", "."), ("datos", "datos")]
 binaries = []
 hiddenimports = ["pyttsx3.drivers", "pyttsx3.drivers.sapi5", "pystray._win32", "comtypes.stream",
-                 "win32timezone", "PIL._tkinter_finder"]
+                 "win32timezone", "PIL._tkinter_finder", "audio", "keyboard", "pyperclip", "pycaw.pycaw"]
 
 for paquete in ["edge_tts", "speech_recognition", "pystray", "screen_brightness_control", "pycaw",
-                "ddgs", "certifi", "sounddevice", "_sounddevice_data", "pygame"]:
+                "ddgs", "certifi", "sounddevice", "_sounddevice_data", "pygame", "comtypes", "keyboard"]:
     try:
         d, b, h = collect_all(paquete)
         datas += d
