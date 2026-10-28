@@ -1,0 +1,72 @@
+name: Compilar JARVIS para Windows
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - name: Descargar el código
+        uses: actions/checkout@v4
+
+      - name: Instalar Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Instalar librerías
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r requirements.txt pyinstaller
+
+      - name: Crear JARVIS.exe
+        run: python -m PyInstaller --noconfirm --clean JARVIS.spec
+
+      - name: Autoprueba del .exe
+        shell: pwsh
+        run: |
+          $p = Start-Process -FilePath "dist\JARVIS\JARVIS.exe" -ArgumentList "--autotest","autotest.txt" -Wait -PassThru
+          Get-Content autotest.txt
+          if ($p.ExitCode -ne 0) { throw "La autoprueba del .exe falló (código $($p.ExitCode))" }
+
+      - name: Instalar Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Crear el instalador JARVIS_Setup.exe
+        shell: pwsh
+        run: |
+          $iscc = @("${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe", "$env:ProgramFiles\Inno Setup 6\ISCC.exe") | Where-Object { Test-Path $_ } | Select-Object -First 1
+          & $iscc instalador.iss
+          if ($LASTEXITCODE -ne 0) { throw "Inno Setup falló" }
+          Get-ChildItem salida
+
+      - name: Guardar el instalador
+        uses: actions/upload-artifact@v4
+        with:
+          name: JARVIS_Setup
+          path: salida/JARVIS_Setup.exe
+
+      - name: Publicar en Releases
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: salida/JARVIS_Setup.exe
+          name: J.A.R.V.I.S. ${{ github.ref_name }}
+          body: |
+            ## Instalación
+            1. Descarga **JARVIS_Setup.exe** (abajo, en *Assets*) y ábrelo.
+            2. Si Windows muestra "Windows protegió su PC": **Más información → Ejecutar de todas formas** (el programa no está firmado).
+            3. Al abrir JARVIS por primera vez, pega tu clave gratis de **Groq** (y opcionalmente la de **Gemini**).
+
+            ## Novedades
+            - Cerebro en la nube con Groq: elige solo el mejor modelo de tu cuenta.
+            - Gemini como respaldo automático y para ver tu pantalla.
+            - Ventana para elegir micrófono y parlantes (clic derecho en el reactor).
+            - Entiende frases como "quiero que me digas la hora" al instante.
