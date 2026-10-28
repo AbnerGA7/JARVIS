@@ -655,7 +655,7 @@ class HUD:
             return
         y = 428
         for quien, texto in reversed(self.registro):
-            col = self.color if quien == "JARVIS" else ("#ff9a3c" if quien == "ALERTA" else TEXTO)
+            col = self.color if quien == "JARVIS" else {"ALERTA": "#ff9a3c", "MEMORIA": "#c49bff"}.get(quien, TEXTO)
             cuerpo = cv.create_text(S(36), S(y), text=texto, anchor="sw", fill=col if quien != "TÚ" else TEXTO,
                                     width=S(236), font=("Segoe UI", 9), tags="log")
             x1, y1, x2, y2 = cv.bbox(cuerpo)
