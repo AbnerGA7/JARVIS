@@ -735,7 +735,7 @@ def autoprueba(archivo):
     """JARVIS.exe --autotest salida.txt : comprueba que el .exe tenga todas sus piezas (lo usa la compilación)."""
     import importlib, traceback
     informe, fallos = [], 0
-    modulos = ["config", "cerebro", "habilidades", "rapido", "hud", "bandeja", "oido", "voz", "audio",
+    modulos = ["config", "cerebro", "habilidades", "rapido", "memoria", "musica", "hud", "bandeja", "oido", "voz", "audio",
                "numpy", "requests", "sounddevice", "speech_recognition", "pygame", "edge_tts", "pyttsx3", "pyautogui",
                "pyperclip", "psutil", "pycaw.pycaw", "comtypes", "screen_brightness_control", "pystray", "PIL.Image",
                "keyboard", "ddgs", "certifi", "tkinter", "cryptography.hazmat.primitives.ciphers.aead", "servidor", "tunel", "arranque", "actualizador", "notificar", "centro", "winotify"]
@@ -754,6 +754,8 @@ def autoprueba(archivo):
                            ("cifrado", lambda: __import__("tunel").descifrar(__import__("tunel").cifrar({"a": 1}, b"k" * 32), b"k" * 32) == {"a": 1}),
                            ("cloudflared incluido", lambda: os.path.exists(os.path.join(BASE, "cloudflared.exe")) or not getattr(sys, "frozen", False)),
                            ("ventana tk", lambda: (lambda r: (r.update(), r.destroy(), True)[-1])(__import__("tkinter").Tk())),
+                           ("memoria (base de datos)", lambda: __import__("memoria").Memoria(
+                               os.path.join(__import__("tempfile").gettempdir(), "jarvis_autoprueba.db")).estadisticas() is not None),
                            ("reflejos", lambda: __import__("rapido").Reflejos(cargar_config(), Almacen("prueba_cmd.json", {}),
                                                                             None).interpretar("qué hora es") is not None)]:
         try:
