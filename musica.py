@@ -61,15 +61,17 @@ def sonando(t):
 
 
 def _enfocar(h):
+    """Trae Spotify al frente. Devuelve False si Windows no lo permitió (así nunca se teclea en otra ventana)."""
     import ctypes
     u = ctypes.windll.user32
     if u.GetForegroundWindow() == h:
-        return
+        return True
     u.ShowWindow(h, 9)                       # SW_RESTORE
     u.keybd_event(0x12, 0, 0, 0)             # un toque de Alt permite traer la ventana al frente
     u.keybd_event(0x12, 0, 2, 0)
     u.SetForegroundWindow(h)
     time.sleep(0.35)
+    return u.GetForegroundWindow() in {v[0] for v in ventanas()}
 
 
 def cancion_concreta(consulta):
@@ -147,7 +149,9 @@ def reproducir(consulta):
         p = principal()
         if not p:
             return None
-        _enfocar(p[0])
+        if not _enfocar(p[0]):
+            log.info("Spotify no pasó al frente; no tecleo nada")
+            return ""
         _buscar_y_dar_play(q, bajar)
         t = _esperar_cancion(antes)
         if t:
