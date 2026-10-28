@@ -38,6 +38,7 @@ class HUD:
         self.cfg = cfg
         self.al_clic = al_clic or (lambda: None)
         self.menu_acciones = menu or []
+        self.icono = icono
         self.q = queue.Queue()
         self.nivel_mic = 0.0
         self.nivel_voz = 0.0
@@ -113,6 +114,14 @@ class HUD:
 
     def cerrar(self):
         self.q.put(("salir", None, None))
+
+    def pedir_clave(self, error=None):
+        """Muestra la ventana para pegar la clave de Groq y espera. Devuelve la clave o None si se cancela."""
+        import threading
+        listo, caja = threading.Event(), {}
+        self.q.put(("dialogo", (listo, caja), error))
+        listo.wait()
+        return caja.get("clave")
 
     def run(self):
         self.root.mainloop()
@@ -211,6 +220,8 @@ class HUD:
             elif tipo == "silencio":
                 self.silenciado = a
                 self.q.put(("estado", "SILENCIO" if a else "EN ESPERA", None))
+            elif tipo == "dialogo":
+                self._dialogo_clave(*a, error=b)
             elif tipo == "orbe":
                 self.cfg["mostrar_orbe"] = a
                 if self.modo == "orbe" and not a:
@@ -258,6 +269,73 @@ class HUD:
             self.stats["BATERÍA"] = b.percent if b else None
         except Exception:
             pass
+
+    # ================================================================ ventana de la clave
+    def _dialogo_clave(self, listo, caja, error=None):
+        import webbrowser
+        c = COLORES["EN LÍNEA"]
+        tenue = mezclar(c, FONDO, 0.55)
+        d = tk.Toplevel(self.root)
+        d.title("J.A.R.V.I.S. — Núcleo en la nube")
+        try:
+            if self.icono:
+                d.iconbitmap(self.icono)
+        except Exception:
+            pass
+        d.configure(bg=FONDO, highlightthickness=2, highlightbackground=c)
+        d.attributes("-topmost", True)
+        d.resizable(False, False)
+        cuerpo = tk.Frame(d, bg=FONDO, padx=28, pady=22)
+        cuerpo.pack(fill="both", expand=True)
+        tk.Label(cuerpo, text="◤ ACTIVAR NÚCLEO EN LA NUBE", fg=c, bg=FONDO,
+                 font=("Consolas", 14, "bold")).pack(anchor="w")
+        tk.Label(cuerpo, text="Groq · gratis · ultrarrápido · no usa tu tarjeta gráfica", fg=tenue, bg=FONDO,
+                 font=("Consolas", 9)).pack(anchor="w", pady=(2, 14))
+        pasos = ("1.  Abre Groq con el botón de abajo e inicia sesión (con Google es un clic).\n"
+                 "2.  Pulsa  «Create API Key», ponle de nombre JARVIS y copia la clave.\n"
+                 "3.  Pégala aquí (Ctrl+V) y pulsa CONECTAR.")
+        tk.Label(cuerpo, text=pasos, fg=TEXTO, bg=FONDO, justify="left", font=("Segoe UI", 10)).pack(anchor="w")
+        tk.Button(cuerpo, text="ABRIR GROQ  ↗", command=lambda: webbrowser.open("https://console.groq.com/keys"),
+                  bg=FONDO, fg=c, activebackground=c, activeforeground="#000000", relief="flat", bd=0,
+                  highlightthickness=1, highlightbackground=c, font=("Consolas", 10, "bold"), padx=14, pady=6,
+                  cursor="hand2").pack(anchor="w", pady=(12, 16))
+        tk.Label(cuerpo, text="CLAVE DE GROQ", fg=c, bg=FONDO, font=("Consolas", 9, "bold")).pack(anchor="w")
+        valor = tk.StringVar()
+        entrada = tk.Entry(cuerpo, textvariable=valor, show="•", width=52, bg="#081c2a", fg=TEXTO,
+                           insertbackground=c, relief="flat", font=("Consolas", 11),
+                           highlightthickness=1, highlightbackground=tenue, highlightcolor=c)
+        entrada.pack(fill="x", ipady=7, pady=(4, 6))
+        aviso = tk.Label(cuerpo, text=error or "", fg="#ff7a1a", bg=FONDO, font=("Segoe UI", 9))
+        aviso.pack(anchor="w")
+
+        def terminar(clave):
+            caja["clave"] = clave
+            listo.set()
+            d.destroy()
+
+        def conectar(_=None):
+            clave = valor.get().strip()
+            if not clave:
+                aviso.config(text="Pega primero tu clave")
+                return
+            terminar(clave)
+
+        botones = tk.Frame(cuerpo, bg=FONDO)
+        botones.pack(fill="x", pady=(14, 0))
+        tk.Button(botones, text="CONECTAR", command=conectar, bg=c, fg="#000000", activebackground=TEXTO,
+                  relief="flat", bd=0, font=("Consolas", 11, "bold"), padx=22, pady=7,
+                  cursor="hand2").pack(side="right")
+        tk.Button(botones, text="Ahora no", command=lambda: terminar(None), bg=FONDO, fg=tenue,
+                  activebackground=FONDO, activeforeground=TEXTO, relief="flat", bd=0, font=("Segoe UI", 10),
+                  cursor="hand2").pack(side="right", padx=14)
+        entrada.bind("<Return>", conectar)
+        d.protocol("WM_DELETE_WINDOW", lambda: terminar(None))
+        d.update_idletasks()
+        w, hh = d.winfo_reqwidth(), d.winfo_reqheight()
+        d.geometry(f"+{(self.sw - w) // 2}+{(self.sh - hh) // 2}")
+        d.lift()
+        d.focus_force()
+        entrada.focus_set()
 
     # ================================================================ dibujo
     def _poligono_panel(self, x1, y1, x2, y2, corte=14, tag="fijo", relleno=FONDO):
