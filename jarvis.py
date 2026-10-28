@@ -530,7 +530,48 @@ def ya_esta_abierto():
         return False
 
 
+def autoprueba(archivo):
+    """JARVIS.exe --autotest salida.txt : comprueba que el .exe tenga todas sus piezas (lo usa la compilación)."""
+    import importlib, traceback
+    informe, fallos = [], 0
+    modulos = ["config", "cerebro", "habilidades", "rapido", "hud", "bandeja", "oido", "voz", "audio",
+               "numpy", "requests", "sounddevice", "speech_recognition", "pygame", "edge_tts", "pyttsx3", "pyautogui",
+               "pyperclip", "psutil", "pycaw.pycaw", "comtypes", "screen_brightness_control", "pystray", "PIL.Image",
+               "keyboard", "ddgs", "certifi", "tkinter"]
+    for m in modulos:
+        try:
+            importlib.import_module(m)
+            informe.append(f"OK    {m}")
+        except Exception as e:
+            fallos += 1
+            informe.append(f"FALLA {m}: {e!r}")
+    from config import BASE, cargar_config, cargar_entrenamiento
+    for nombre, prueba in [("icono", lambda: os.path.exists(ICONO)),
+                           ("config por defecto", lambda: bool(cargar_config().get("palabras_activacion"))),
+                           ("entrenamiento", lambda: len(cargar_entrenamiento()) > 10),
+                           ("certificados https", lambda: os.path.exists(__import__("certifi").where())),
+                           ("ventana tk", lambda: (lambda r: (r.update(), r.destroy(), True)[-1])(__import__("tkinter").Tk())),
+                           ("reflejos", lambda: __import__("rapido").Reflejos(cargar_config(), Almacen("prueba_cmd.json", {}),
+                                                                            None).interpretar("qué hora es") is not None)]:
+        try:
+            ok = prueba()
+        except Exception:
+            ok = False
+            informe.append(traceback.format_exc(limit=2))
+        fallos += 0 if ok else 1
+        informe.append(f"{'OK   ' if ok else 'FALLA'} {nombre}")
+    informe.append(f"BASE={BASE}")
+    informe.append("RESULTADO: " + ("TODO OK" if fallos == 0 else f"{fallos} FALLAS"))
+    with open(archivo, "w", encoding="utf-8") as f:
+        f.write("\n".join(informe))
+    return 0 if fallos == 0 else 1
+
+
 def main():
+    if "--autotest" in sys.argv:
+        i = sys.argv.index("--autotest")
+        archivo = sys.argv[i + 1] if len(sys.argv) > i + 1 else "autotest.txt"
+        os._exit(autoprueba(archivo))
     if ES_WINDOWS:
         try:
             import ctypes
