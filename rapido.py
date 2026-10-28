@@ -28,6 +28,9 @@ REGLAS = [
     (r"^(toma|haz|saca) (una )?captura( de pantalla)?$", lambda m: [{"tipo": "captura", "valor": ""}]),
     (r"^(minimiza todo|muestra el escritorio|ve al escritorio)$", lambda m: [{"tipo": "ventana", "valor": "minimizar_todo"}]),
     (r"^(bloquea|bloquea la pc|bloquea la computadora|bloquea el equipo)$", lambda m: [{"tipo": "bloquear", "valor": ""}]),
+    (r"^(cambia|cambiar|configura|configurar|elige|elegir|ajusta|ajustar) (el |los |de )?(microfono|parlantes|audifonos|"
+     r"audio|salida de audio|entrada de audio)( y (los )?(parlantes|microfono))?$",
+     lambda m: [{"tipo": "ajustes_audio", "valor": ""}]),
 ]
 
 ABRIR = re.compile(r"^(abre|abreme|abras|abrir|inicia|inicies|ejecuta|ejecutes|lanza|pon|entra a|entra en|ve a|vayas a)"
