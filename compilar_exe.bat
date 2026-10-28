@@ -45,6 +45,6 @@ pause
 exit /b
 
 :fallo
-echo [X] Fallo la compilacion. Toma una captura de los mensajes de arriba y enviasela a Claude.
+echo [X] Fallo la compilacion. Toma una captura de los mensajes de arriba y guardala para revisarla.
 pause
 exit /b

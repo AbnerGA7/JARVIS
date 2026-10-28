@@ -12,36 +12,19 @@ echo.
 python --version >nul 2>&1
 if errorlevel 1 goto sinpython
 
-echo [1/3] Instalando librerias de Python...
+echo [1/2] Instalando librerias de Python...
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 if errorlevel 1 goto errorpip
 
 echo.
-echo [2/3] Revisando Ollama, el cerebro de JARVIS...
-where ollama >nul 2>&1
-if not errorlevel 1 goto hayollama
-if exist "%LOCALAPPDATA%\Programs\Ollama\ollama.exe" set "PATH=%PATH%;%LOCALAPPDATA%\Programs\Ollama"
-where ollama >nul 2>&1
-if not errorlevel 1 goto hayollama
-echo [!] Falta Ollama. Se abrira la pagina de descarga: instalalo y vuelve a abrir este archivo.
-start https://ollama.com/download/windows
-pause
-exit /b
-
-:hayollama
-for /f %%r in ('powershell -NoProfile -Command "[int]((Get-CimInstance Win32_ComputerSystem).TotalPhysicalMemory/1GB)"') do set RAM=%%r
-echo     Tu PC tiene %RAM% GB de RAM.
-set MODELO=qwen2.5:3b
-if %RAM% GEQ 14 set MODELO=qwen2.5:7b
-echo     Descargando el cerebro %MODELO%  -  solo la primera vez, puede tardar...
-ollama pull %MODELO%
-
-echo.
-echo [3/3] Modulo de vision opcional: permite que JARVIS vea tu pantalla, unos 1.7 GB
-choice /c SN /m "  Quieres instalarlo"
+echo [2/2] Cerebro en la nube: Groq, gratis
+echo     No hay que descargar nada. La primera vez que abras JARVIS
+echo     te aparecera una ventana para pegar tu clave gratuita de Groq.
+echo     Si quieres tenerla lista, se abrira la pagina para crearla.
+choice /c SN /m "  Abrir la pagina de Groq ahora"
 if errorlevel 2 goto fin
-ollama pull moondream
+start https://console.groq.com/keys
 
 :fin
 echo.
@@ -61,6 +44,6 @@ pause
 exit /b
 
 :errorpip
-echo [X] Hubo un error instalando las librerias. Toma una captura y enviasela a Claude.
+echo [X] Hubo un error instalando las librerias. Toma una captura y guardala para revisarla.
 pause
 exit /b
