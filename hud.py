@@ -131,6 +131,10 @@ class HUD:
     def cerrar(self):
         self.q.put(("salir", None, None))
 
+    def ajustes_audio(self, microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar):
+        """Abre la ventana de micrófono y parlantes (se puede llamar desde cualquier hilo)."""
+        self.q.put(("audio", (microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar), None))
+
     def pedir_clave(self, error=None, servicio="groq"):
         """Muestra la ventana para pegar una clave (groq o gemini) y espera. Devuelve la clave o None."""
         import threading
@@ -236,6 +240,8 @@ class HUD:
             elif tipo == "silencio":
                 self.silenciado = a
                 self.q.put(("estado", "SILENCIO" if a else "EN ESPERA", None))
+            elif tipo == "audio":
+                self._dialogo_audio(*a)
             elif tipo == "dialogo":
                 self._dialogo_clave(*a, error=b)
             elif tipo == "orbe":
@@ -285,6 +291,117 @@ class HUD:
             self.stats["BATERÍA"] = b.percent if b else None
         except Exception:
             pass
+
+    # ================================================================ ventana de audio
+    def _dialogo_audio(self, microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar):
+        import threading
+        from tkinter import ttk
+        from audio import PREDETERMINADO
+        c = COLORES["EN LÍNEA"]
+        tenue = mezclar(c, FONDO, 0.55)
+        if getattr(self, "_ventana_audio", None) and self._ventana_audio.winfo_exists():
+            self._ventana_audio.lift()
+            return
+        d = self._ventana_audio = tk.Toplevel(self.root)
+        d.title("J.A.R.V.I.S. — Micrófono y parlantes")
+        try:
+            if self.icono:
+                d.iconbitmap(self.icono)
+        except Exception:
+            pass
+        d.configure(bg=FONDO, highlightthickness=2, highlightbackground=c)
+        d.attributes("-topmost", True)
+        d.resizable(False, False)
+        estilo = ttk.Style(d)
+        try:
+            estilo.theme_use("clam")
+        except Exception:
+            pass
+        estilo.configure("J.TCombobox", fieldbackground="#081c2a", background=FONDO, foreground=TEXTO,
+                         arrowcolor=c, bordercolor=tenue, lightcolor=FONDO, darkcolor=FONDO, padding=6)
+        estilo.map("J.TCombobox", fieldbackground=[("readonly", "#081c2a")], foreground=[("readonly", TEXTO)],
+                   selectbackground=[("readonly", "#081c2a")], selectforeground=[("readonly", TEXTO)])
+        d.option_add("*TCombobox*Listbox.background", "#081c2a")
+        d.option_add("*TCombobox*Listbox.foreground", TEXTO)
+        d.option_add("*TCombobox*Listbox.selectBackground", c)
+        d.option_add("*TCombobox*Listbox.selectForeground", "#000000")
+        d.option_add("*TCombobox*Listbox.font", ("Segoe UI", 10))
+
+        cuerpo = tk.Frame(d, bg=FONDO, padx=28, pady=22)
+        cuerpo.pack(fill="both", expand=True)
+        tk.Label(cuerpo, text="◤ MICRÓFONO Y PARLANTES", fg=c, bg=FONDO, font=("Consolas", 14, "bold")).pack(anchor="w")
+        tk.Label(cuerpo, text="Elige con qué te escucho y por dónde te hablo", fg=tenue, bg=FONDO,
+                 font=("Consolas", 9)).pack(anchor="w", pady=(2, 16))
+
+        # --- micrófono
+        tk.Label(cuerpo, text="MICRÓFONO (ENTRADA)", fg=c, bg=FONDO, font=("Consolas", 9, "bold")).pack(anchor="w")
+        mics = [("", PREDETERMINADO)] + list(microfonos)
+        mic_var = tk.StringVar(value=next((v for k, v in mics if k == actual_mic), PREDETERMINADO))
+        combo_mic = ttk.Combobox(cuerpo, textvariable=mic_var, values=[v for _, v in mics], state="readonly",
+                                 width=56, style="J.TCombobox", font=("Segoe UI", 10))
+        combo_mic.pack(fill="x", pady=(4, 8))
+        medidor = tk.Canvas(cuerpo, height=14, bg="#081c2a", highlightthickness=1, highlightbackground=tenue)
+        medidor.pack(fill="x")
+        tk.Label(cuerpo, text="Habla: la barra debe moverse con tu voz", fg=tenue, bg=FONDO,
+                 font=("Segoe UI", 9)).pack(anchor="w", pady=(4, 18))
+
+        def mic_elegido(_=None):
+            clave = next(k for k, v in mics if v == mic_var.get())
+            threading.Thread(target=al_elegir_mic, args=(clave,), daemon=True).start()
+        combo_mic.bind("<<ComboboxSelected>>", mic_elegido)
+
+        # --- parlantes
+        tk.Label(cuerpo, text="PARLANTES / AUDÍFONOS (SALIDA)", fg=c, bg=FONDO, font=("Consolas", 9, "bold")).pack(anchor="w")
+        parls = [("", PREDETERMINADO)] + [(p, p) for p in parlantes]
+        parl_var = tk.StringVar(value=next((v for k, v in parls if k == actual_parl), PREDETERMINADO))
+        fila = tk.Frame(cuerpo, bg=FONDO)
+        fila.pack(fill="x", pady=(4, 0))
+        combo_parl = ttk.Combobox(fila, textvariable=parl_var, values=[v for _, v in parls], state="readonly",
+                                  width=42, style="J.TCombobox", font=("Segoe UI", 10))
+        combo_parl.pack(side="left", fill="x", expand=True)
+
+        def probar():
+            clave = next(k for k, v in parls if v == parl_var.get())
+            threading.Thread(target=al_probar_parl, args=(clave,), daemon=True).start()
+        tk.Button(fila, text="▶ PROBAR", command=probar, bg=FONDO, fg=c, activebackground=c, activeforeground="#000000",
+                  relief="flat", bd=0, highlightthickness=1, highlightbackground=c, font=("Consolas", 10, "bold"),
+                  padx=12, pady=5, cursor="hand2").pack(side="left", padx=(10, 0))
+
+        def guardar():
+            mic = next(k for k, v in mics if v == mic_var.get())
+            parl = next(k for k, v in parls if v == parl_var.get())
+            threading.Thread(target=al_guardar, args=(mic, parl), daemon=True).start()
+            d.destroy()
+
+        botones = tk.Frame(cuerpo, bg=FONDO)
+        botones.pack(fill="x", pady=(22, 0))
+        tk.Button(botones, text="GUARDAR", command=guardar, bg=c, fg="#000000", activebackground=TEXTO, relief="flat",
+                  bd=0, font=("Consolas", 11, "bold"), padx=22, pady=7, cursor="hand2").pack(side="right")
+
+        def cancelar():
+            threading.Thread(target=al_guardar, args=(actual_mic, actual_parl, False), daemon=True).start()
+            d.destroy()
+        tk.Button(botones, text="Cancelar", command=cancelar, bg=FONDO, fg=tenue, activebackground=FONDO,
+                  activeforeground=TEXTO, relief="flat", bd=0, font=("Segoe UI", 10), cursor="hand2").pack(side="right", padx=14)
+        d.protocol("WM_DELETE_WINDOW", cancelar)
+
+        nivel = [0.0]
+
+        def animar():
+            if not d.winfo_exists():
+                return
+            nivel[0] = max(self.nivel_mic, nivel[0] * 0.85)
+            medidor.delete("all")
+            ancho = medidor.winfo_width()
+            col = c if nivel[0] < 0.85 else "#ffb000"
+            medidor.create_rectangle(0, 0, ancho * min(1.0, nivel[0]), 16, fill=col, outline="")
+            d.after(40, animar)
+        d.update_idletasks()
+        w, hh = d.winfo_reqwidth(), d.winfo_reqheight()
+        d.geometry(f"+{(self.sw - w) // 2}+{(self.sh - hh) // 2}")
+        d.lift()
+        d.focus_force()
+        animar()
 
     # ================================================================ ventana de la clave
     def _dialogo_clave(self, listo, caja, servicio="groq", error=None):

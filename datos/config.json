@@ -27,6 +27,8 @@
   "temperatura": 0.4,
   "ciudad": "Lima",
   "pais_noticias": "PE",
+  "microfono": "",
+  "parlantes": "",
   "aplausos": true,
   "sensibilidad_aplauso": 0.35,
   "atajo_activar": "ctrl+alt+j",
