@@ -46,6 +46,7 @@ CONTROL DE LA PC
 - captura: (sin valor) guarda una captura de pantalla
 - configuracion: wifi, bluetooth, sonido, pantalla, bateria, actualizaciones, apps, fondo, notificaciones
 - ajustes_audio: (sin valor) abre la ventana para elegir el micrófono y los parlantes de JARVIS
+- conectar_celular: (sin valor) muestra el PIN para vincular la app JARVIS del celular
 INFORMACIÓN  [CONSULTA]
 - hora / fecha: (sin valor)
 - clima: ciudad (vacío = ciudad del usuario)

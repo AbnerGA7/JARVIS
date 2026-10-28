@@ -138,5 +138,7 @@
         "valor": "15"
       }
     ]
-  }
+  },
+  "enlace_celular": true,
+  "compartir_clave_con_celular": true
 }
