@@ -45,6 +45,7 @@ CONTROL DE LA PC
 - escribir: texto que se escribirá donde esté el cursor
 - captura: (sin valor) guarda una captura de pantalla
 - configuracion: wifi, bluetooth, sonido, pantalla, bateria, actualizaciones, apps, fondo, notificaciones
+- ajustes_audio: (sin valor) abre la ventana para elegir el micrófono y los parlantes de JARVIS
 INFORMACIÓN  [CONSULTA]
 - hora / fecha: (sin valor)
 - clima: ciudad (vacío = ciudad del usuario)

@@ -803,6 +803,12 @@ class Habilidades:
         import ctypes
         ctypes.windll.user32.LockWorkStation()
 
+    def h_ajustes_audio(self, v, a):
+        abrir = getattr(self.n, "abrir_ajustes_audio", None)
+        if abrir:
+            abrir()
+        return ("decir", "Le abrí los ajustes de micrófono y parlantes.")
+
     def h_modo(self, v, a):
         self.n.poner_modo("silencio" if "silen" in normalizar(v) or "pausa" in normalizar(v) else "activo")
 
