@@ -17,6 +17,7 @@ class Oido:
         self.cfg = cfg
         self.al_aplaudir = al_aplaudir or (lambda: None)
         self.al_aplauso_suelto = lambda: None     # cada aplauso individual (para la prueba de aplausos)
+        self.transcriptor = None                  # Whisper (Groq) para las órdenes; None = solo Google
         self.al_nivel = al_nivel or (lambda n: None)
         self.cola = queue.Queue(maxsize=2000)
         self.ignorar = threading.Event()   # activo mientras Jarvis habla
@@ -122,7 +123,7 @@ class Oido:
             self._candidato = (ahora, pico, 0, 0.0)
 
     # ------------------------------------------------------------ escuchar
-    def escuchar(self, espera=None, limite=12.0, abortar=None, al_empezar=None):
+    def escuchar(self, espera=None, limite=12.0, abortar=None, al_empezar=None, preciso=False):
         """
         Espera a que hables y devuelve el texto reconocido.
         espera: segundos máximos esperando a que empieces (None = infinito)
@@ -168,7 +169,12 @@ class Oido:
                     break
         if con_voz < 8:  # menos de ~0.25 s de voz real: ruido
             return ""
-        return self.reconocer(b"".join(tramos))
+        pcm = b"".join(tramos)
+        if preciso and self.transcriptor:
+            texto = self.transcriptor(pcm)
+            if texto is not None:
+                return texto
+        return self.reconocer(pcm)
 
     def reconocer(self, pcm):
         audio = self.sr.AudioData(pcm, TASA, 2)
