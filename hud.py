@@ -135,6 +135,9 @@ class HUD:
         """Abre la ventana de micrófono y parlantes (se puede llamar desde cualquier hilo)."""
         self.q.put(("audio", (microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar), None))
 
+    def mostrar_pin(self, pin, ip, puerto, minutos):
+        self.q.put(("pin", (pin, ip, puerto, minutos), None))
+
     def pedir_clave(self, error=None, servicio="groq"):
         """Muestra la ventana para pegar una clave (groq o gemini) y espera. Devuelve la clave o None."""
         import threading
@@ -240,6 +243,11 @@ class HUD:
             elif tipo == "silencio":
                 self.silenciado = a
                 self.q.put(("estado", "SILENCIO" if a else "EN ESPERA", None))
+            elif tipo == "pin_cerrar":
+                if getattr(self, "_ventana_pin", None) and self._ventana_pin.winfo_exists():
+                    self._ventana_pin.destroy()
+            elif tipo == "pin":
+                self._dialogo_pin(*a)
             elif tipo == "audio":
                 self._dialogo_audio(*a)
             elif tipo == "dialogo":
@@ -291,6 +299,56 @@ class HUD:
             self.stats["BATERÍA"] = b.percent if b else None
         except Exception:
             pass
+
+    # ================================================================ ventana del PIN del celular
+    def _dialogo_pin(self, pin, ip, puerto, minutos):
+        c = COLORES["EN LÍNEA"]
+        tenue = mezclar(c, FONDO, 0.55)
+        if getattr(self, "_ventana_pin", None) and self._ventana_pin.winfo_exists():
+            self._ventana_pin.destroy()
+        d = self._ventana_pin = tk.Toplevel(self.root)
+        d.title("J.A.R.V.I.S. — Conectar celular")
+        try:
+            if self.icono:
+                d.iconbitmap(self.icono)
+        except Exception:
+            pass
+        d.configure(bg=FONDO, highlightthickness=2, highlightbackground=c)
+        d.attributes("-topmost", True)
+        d.resizable(False, False)
+        cuerpo = tk.Frame(d, bg=FONDO, padx=34, pady=24)
+        cuerpo.pack(fill="both", expand=True)
+        tk.Label(cuerpo, text="◤ CONECTAR CELULAR", fg=c, bg=FONDO, font=("Consolas", 14, "bold")).pack(anchor="w")
+        tk.Label(cuerpo, text="Abre la app JARVIS en tu Android (en la misma red WiFi) y escribe este código:",
+                 fg=TEXTO, bg=FONDO, font=("Segoe UI", 10)).pack(anchor="w", pady=(10, 6))
+        tk.Label(cuerpo, text=" ".join(pin), fg=c, bg=FONDO, font=("Consolas", 40, "bold")).pack(pady=(4, 2))
+        restante = tk.Label(cuerpo, text="", fg=tenue, bg=FONDO, font=("Consolas", 9))
+        restante.pack()
+        tk.Label(cuerpo, text=f"Si la app no encuentra la PC sola, usa la dirección:  {ip}:{puerto}", fg=tenue,
+                 bg=FONDO, font=("Segoe UI", 9)).pack(anchor="w", pady=(16, 0))
+        tk.Label(cuerpo, text="Si Windows pregunta por el firewall, permite el acceso en «Redes privadas».", fg=tenue,
+                 bg=FONDO, font=("Segoe UI", 9)).pack(anchor="w")
+        tk.Button(cuerpo, text="LISTO", command=d.destroy, bg=c, fg="#000000", activebackground=TEXTO, relief="flat",
+                  bd=0, font=("Consolas", 11, "bold"), padx=22, pady=6, cursor="hand2").pack(anchor="e", pady=(18, 0))
+        fin = time.time() + minutos * 60
+
+        def contar():
+            if not d.winfo_exists():
+                return
+            s = int(fin - time.time())
+            if s <= 0:
+                d.destroy()
+                return
+            restante.config(text=f"válido por {s // 60}:{s % 60:02d}")
+            d.after(500, contar)
+        d.update_idletasks()
+        w, hh = d.winfo_reqwidth(), d.winfo_reqheight()
+        d.geometry(f"+{(self.sw - w) // 2}+{(self.sh - hh) // 2}")
+        d.lift()
+        contar()
+
+    def cerrar_pin(self):
+        self.q.put(("pin_cerrar", None, None))
 
     # ================================================================ ventana de audio
     def _dialogo_audio(self, microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar):
