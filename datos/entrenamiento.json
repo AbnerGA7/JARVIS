@@ -9,11 +9,12 @@
   {
     "usuario": "abre spotify y pon música de queen",
     "jarvis": {
-      "respuesta": "Queen, excelente elección. Reproduciendo, señor.",
+      "respuesta": "Queen, excelente elección. Lo pongo en Spotify, señor.",
       "acciones": [
         {
           "tipo": "reproducir",
-          "valor": "Queen grandes éxitos"
+          "valor": "Queen",
+          "app": "spotify"
         }
       ]
     }
@@ -400,6 +401,31 @@
         {
           "tipo": "preferencia",
           "texto": "Para estudiar prefiere música tranquila e instrumental, sin letra"
+        }
+      ]
+    }
+  },
+  {
+    "usuario": "pon un tutorial de excel para principiantes",
+    "jarvis": {
+      "respuesta": "Enseguida, señor.",
+      "acciones": [
+        {
+          "tipo": "reproducir",
+          "valor": "tutorial de excel para principiantes",
+          "app": "youtube"
+        }
+      ]
+    }
+  },
+  {
+    "usuario": "resúmeme esta página",
+    "jarvis": {
+      "respuesta": "Leyendo la página, señor.",
+      "acciones": [
+        {
+          "tipo": "leer_pagina",
+          "valor": "actual"
         }
       ]
     }
