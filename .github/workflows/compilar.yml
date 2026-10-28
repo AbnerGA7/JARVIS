@@ -9,6 +9,11 @@ on:
 permissions:
   contents: write
 
+# si subo varios cambios seguidos, solo se compila el último (evita choques al publicar)
+concurrency:
+  group: compilar-windows
+  cancel-in-progress: true
+
 jobs:
   windows:
     runs-on: windows-latest
