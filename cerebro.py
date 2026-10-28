@@ -23,7 +23,7 @@ EJEMPLOS_NUBE = {
     "recuérdame en 20 minutos sacar la ropa de la lavadora", "anota que tengo que comprar pan y leche",
     "quién fue nikola tesla", "mándale un whatsapp a mamá diciendo que ya voy",
     "cuando te diga modo cine pausa todo, baja el brillo y abre netflix", "busca el archivo del informe de historia",
-    "por qué no te abres cuando aplaudo dos veces",
+    "por qué no te abres cuando aplaudo dos veces", "para estudiar prefiero música tranquila sin letra",
 }
 
 ACCIONES = """\
@@ -75,6 +75,10 @@ PRODUCTIVIDAD
 MEMORIA Y APRENDIZAJE
 - recordar_dato: dato sobre el usuario que debes recordar para siempre
 - olvidar_dato: dato a olvidar
+- lo_aprendido: (sin valor) lo que has aprendido del usuario  [CONSULTA]
+- lecciones: "hoy", "semana" o "todo": lo que le has enseñado al usuario  [CONSULTA]
+- repaso: (sin valor) lecciones para hacerle preguntas de repaso al usuario  [CONSULTA]
+- leer_pagina: URL a leer (o "portapapeles" si el enlace está copiado) para resumirla o responder sobre ella  [CONSULTA]
 - aprender: "frase": orden del usuario, "acciones": [lista de acciones] (cuando te enseñe un comando nuevo)
 - rutina: nombre de una rutina configurada
 SISTEMA
@@ -89,6 +93,14 @@ Hablas SIEMPRE en español, en frases cortas y naturales porque se leen en voz a
 
 Controlas por completo la computadora Windows del usuario mediante ACCIONES. Respondes ÚNICAMENTE con un objeto JSON válido, así:
 {{"respuesta": "lo que dirás en voz alta", "acciones": [{{"tipo": "nombre_accion", "valor": "..."}}]}}
+
+APRENDIZAJE MUTUO (tú y el usuario aprenden juntos; todo se guarda en tu memoria):
+- Si descubres algo nuevo y útil del usuario (gustos, datos personales, hábitos, cómo prefiere las cosas) o te corrige,
+  agrega "aprendi": [{{"tipo": "dato|preferencia|habito|correccion", "texto": "frase corta en tercera persona"}}].
+  No repitas lo que ya está en su memoria.
+- Si le enseñas o explicas algo que vale la pena recordar (un concepto, un dato, un cómo se hace), agrega
+  "leccion": {{"tema": "título corto", "resumen": "2 o 3 frases con lo esencial"}}.
+- Usa siempre lo que sabes del usuario para adaptarte a él, sin repetírselo a cada rato.
 
 SOBRE TI (responde con esto si te preguntan cómo funcionas; nunca digas que no tienes una función de esta lista)
 - Te activan: diciendo "Jarvis", con DOS APLAUSOS seguidos, con Ctrl+Alt+J o con clic en el reactor. Ctrl+Alt+S te calla.
@@ -684,6 +696,22 @@ def interpretar(texto):
     if not isinstance(datos, dict):
         return {"respuesta": (texto or "").strip()[:400], "acciones": []}
     respuesta = datos.get("respuesta") or datos.get("response") or datos.get("mensaje") or ""
+    extras = {}
+    aprendi = datos.get("aprendi") or datos.get("aprendí") or []
+    if isinstance(aprendi, (str, dict)):
+        aprendi = [aprendi]
+    if isinstance(aprendi, list):
+        limpio = []
+        for a in aprendi:
+            if isinstance(a, str) and a.strip():
+                limpio.append({"tipo": "dato", "texto": a.strip()})
+            elif isinstance(a, dict) and str(a.get("texto", "")).strip():
+                limpio.append({"tipo": str(a.get("tipo", "dato")).lower(), "texto": str(a["texto"]).strip()})
+        if limpio:
+            extras["aprendi"] = limpio[:5]
+    leccion = datos.get("leccion") or datos.get("lección")
+    if isinstance(leccion, dict) and leccion.get("tema") and (leccion.get("resumen") or leccion.get("contenido")):
+        extras["leccion"] = {"tema": str(leccion["tema"]), "resumen": str(leccion.get("resumen") or leccion.get("contenido"))}
     acciones = datos.get("acciones", datos.get("actions", []))
     if isinstance(acciones, dict):
         acciones = [acciones]
@@ -699,7 +727,7 @@ def interpretar(texto):
             if "valor" not in a:
                 a["valor"] = a.pop("value", "")
             limpias.append(a)
-    return {"respuesta": str(respuesta), "acciones": limpias}
+    return {"respuesta": str(respuesta), "acciones": limpias, **extras}
 
 
 def threading_precalentar(cerebro):
