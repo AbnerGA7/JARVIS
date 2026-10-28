@@ -8,11 +8,12 @@
 
 ![Windows](https://img.shields.io/badge/Windows-10%20%7C%2011-0078D6?logo=windows&logoColor=white)
 ![Python](https://img.shields.io/badge/Python-3.12-3776AB?logo=python&logoColor=white)
-![Ollama](https://img.shields.io/badge/IA-Ollama%20local-000000?logo=ollama&logoColor=white)
+![Groq](https://img.shields.io/badge/IA-Groq%20Cloud-F55036)
+![Llama](https://img.shields.io/badge/Modelo-Llama%203.3%2070B-0467DF?logo=meta&logoColor=white)
 ![Voz](https://img.shields.io/badge/Voz-Neural%20en%20español-00d8ff)
 ![Licencia](https://img.shields.io/badge/Licencia-MIT-ffb000)
 
-*Le hablo, me entiende y controla mi PC. IA 100 % local y gratuita.*
+*Le hablo, me entiende y controla mi PC. IA en la nube, gratis y sin gastar mi tarjeta gráfica.*
 
 </div>
 
@@ -34,7 +35,9 @@
 | | |
 |---|---|
 | 🎙️ **Activación por voz** | "Jarvis, …", doble aplauso 👏👏, `Ctrl+Alt+J` o clic en el reactor |
-| 🧠 **Cerebro local** | Ollama + Qwen 2.5 (elige 3B o 7B según tu RAM). Sin pagar APIs |
+| ☁️ **Cerebro en la nube** | Groq + Llama 3.3 70B: responde en menos de 1 s, gratis |
+| 🎮 **Cero impacto al jugar** | No usa GPU; JARVIS ocupa ~200 MB de RAM |
+| 🔁 **Respaldo automático** | Si se llega al límite gratis, cambia solo a Llama 3.1 8B |
 | 🗣️ **Voz neural** | Voces de Microsoft en español, con respaldo sin internet |
 | 💬 **Conversación continua** | Después de responder te sigue escuchando, sin repetir "Jarvis" |
 | 🖥️ **HUD holográfico** | Reactor animado que reacciona a tu voz, colores por estado |
@@ -42,7 +45,7 @@
 | 🧩 **45+ habilidades** | Apps, web, sistema, archivos, info, productividad |
 | 💾 **Memoria** | Recuerda datos tuyos para siempre |
 | 🎓 **Aprende** | Le enseñas comandos y rutinas nuevas por voz |
-| 👁️ **Visión** | "¿Qué hay en mi pantalla?" con el modelo `moondream` |
+| 👁️ **Visión** | "¿Qué hay en mi pantalla?" (próximamente con Gemini) |
 | 🔒 **Seguro** | Confirma por voz antes de apagar, enviar o borrar |
 
 ## 🗣️ Ejemplos
@@ -66,7 +69,7 @@ flowchart LR
     M[🎙️ Micrófono] --> O[oido.py<br>voz + aplausos]
     O -->|texto| R{rapido.py<br>reflejos}
     R -->|orden simple| H[habilidades.py<br>45+ acciones]
-    R -->|orden compleja| C[cerebro.py<br>Ollama]
+    R -->|orden compleja| C[cerebro.py<br>Groq ☁️]
     C -->|plan JSON| H
     H -->|resultados| C
     H --> PC[🖥️ Windows]
@@ -79,7 +82,7 @@ flowchart LR
 | `jarvis.py` | Núcleo: conversación, arranque, bandeja |
 | `oido.py` | Micrófono, detección de voz y de aplausos |
 | `voz.py` | Voz neural y voz de Windows de respaldo |
-| `cerebro.py` | Personalidad, prompt y conexión con Ollama |
+| `cerebro.py` | Personalidad, prompt, conexión con Groq y respaldo automático |
 | `rapido.py` | Órdenes instantáneas y comandos aprendidos |
 | `habilidades.py` | Todas las acciones sobre la PC e internet |
 | `hud.py` | Interfaz holográfica y reactor flotante |
@@ -88,9 +91,12 @@ flowchart LR
 ## 📦 Instalación
 
 1. Instala **[Python 3.12](https://www.python.org/downloads/)** (marca *Add Python to PATH*).
-2. Instala **[Ollama](https://ollama.com/download/windows)**.
-3. Ejecuta `instalar.bat` — instala librerías y descarga el cerebro según tu RAM.
+2. Crea tu clave gratis en **[Groq](https://console.groq.com/keys)** (inicia sesión con Google → *Create API Key*).
+3. Ejecuta `instalar.bat` — instala las librerías (no descarga nada pesado).
 4. Ejecuta `iniciar_jarvis.bat`.
+5. La primera vez aparece esta ventana: pega tu clave y listo.
+
+<div align="center"><img src="docs/clave-groq.png" width="560" alt="Ventana para pegar la clave de Groq"></div>
 
 ### Crear el instalador `.exe`
 
@@ -112,7 +118,9 @@ Clic derecho en el reactor → **Configuración** (`%APPDATA%\JARVIS\config.json
 | `ciudad` | `"Lima"` |
 | `contactos` | `{"mamá": "+51999999999"}` |
 | `rutinas` | modo gamer, modo estudio, buenas noches… |
-| `modelo` | `auto`, `qwen2.5:7b`, `qwen2.5:3b` |
+| `proveedor` | `groq` (nube) u `ollama` (local, opcional) |
+| `modelo_groq` | `llama-3.3-70b-versatile` |
+| `modelo_groq_respaldo` | `llama-3.1-8b-instant` |
 | `segundos_conversacion` | `7` (0 lo desactiva) |
 
 ## 🎓 Entrenamiento
@@ -134,7 +142,8 @@ Clic derecho en el reactor → **Configuración** (`%APPDATA%\JARVIS\config.json
 
 - **No me escucha:** revisa el micrófono predeterminado de Windows.
 - **Se activa solo con ruidos:** sube `sensibilidad_aplauso`.
-- **Responde lento:** usa `qwen2.5:3b` en PCs con poca RAM.
+- **"Alcancé el límite gratuito":** el plan gratis de Groq tiene un tope diario; se renueva solo.
+- **Cambiar la clave:** clic derecho en el reactor → *Clave de Groq*.
 - **Registro:** `%APPDATA%\JARVIS\jarvis.log`.
 
 ---
