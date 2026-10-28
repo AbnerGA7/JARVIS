@@ -1,5 +1,5 @@
 ﻿; Instalador de J.A.R.V.I.S. (lo compila compilar_exe.bat con Inno Setup)
-#define AppVer "2.2"
+#define AppVer "2.3"
 
 [Setup]
 AppId={{9794BCDA-6E0F-4F74-B1AA-230D94D787B7}

@@ -85,3 +85,4 @@ jobs:
             - Gemini como respaldo automático y para ver tu pantalla.
             - Ventana para elegir micrófono y parlantes (clic derecho en el reactor).
             - Entiende frases como "quiero que me digas la hora" al instante.
+            - Enlace con la app JARVIS para Android, por WiFi o con datos móviles (clic derecho en el reactor → Conectar celular).
