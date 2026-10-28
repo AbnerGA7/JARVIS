@@ -3,7 +3,7 @@
 import os, sys, json, copy, threading, logging, unicodedata
 from logging.handlers import RotatingFileHandler
 
-VERSION = "2.5"
+VERSION = "2.6"
 
 # Carpeta del programa (funciona también dentro del .exe)
 BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -93,6 +93,10 @@ def cargar_config():
             log.error("config.json tiene un error (%s). Se usará la configuración por defecto.", e)
             usuario = {}
     cfg = _fusionar(defecto, usuario)
+    # 2.6: la voz pasa a ser de mayordomo (más pausada y grave) si el usuario no la había cambiado
+    if not cfg.get("voz_mayordomo") and cfg.get("velocidad_voz") == "+8%" and cfg.get("tono_voz") == "-6Hz":
+        cfg["velocidad_voz"], cfg["tono_voz"] = defecto["velocidad_voz"], defecto["tono_voz"]
+    cfg["voz_mayordomo"] = True
     try:
         with open(archivo, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
