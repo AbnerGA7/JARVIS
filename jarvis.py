@@ -14,6 +14,7 @@ from habilidades import Habilidades, DIAS, MESES, hora_hablada
 from rapido import Reflejos
 from hud import HUD
 from bandeja import iniciar_bandeja, iniciar_atajos
+import servidor
 
 PUERTO_UNICO = 47653
 SALUDOS_ESCUCHA = ["¿Sí, {t}?", "A sus órdenes.", "Le escucho, {t}.", "Dígame, {t}.", "¿En qué le ayudo?"]
@@ -74,6 +75,7 @@ class Jarvis:
             (lambda: "Activar micrófono" if self.silencio else "Silenciar micrófono", self.alternar_silencio),
             (lambda: "Ocultar el reactor" if self.cfg.get("mostrar_orbe", True) else "Mostrar el reactor", self.alternar_orbe),
             ("-", None),
+            ("Conectar celular", self.conectar_celular),
             ("Micrófono y parlantes", self.abrir_ajustes_audio),
             ("Clave de Groq (cerebro en la nube)", self.cambiar_clave),
             ("Clave de Gemini (respaldo y visión)", self.cambiar_clave_gemini),
@@ -89,6 +91,7 @@ class Jarvis:
         self.cerebro = Cerebro(self.cfg, self.alm_memoria)
         self.hab = Habilidades(self.cfg, self)
         self.reflejos = Reflejos(self.cfg, self.alm_comandos, self.hab.apps)
+        self.enlace = servidor.Enlace(self)
 
     @property
     def trato(self):
@@ -117,6 +120,8 @@ class Jarvis:
             log.error("Sin voz: %s", e)
         self.bandeja = iniciar_bandeja(ICONO, self.opciones)
         iniciar_atajos(self.cfg, self.activar, self.callar)
+        if self.cfg.get("enlace_celular", True):
+            self.enlace.iniciar()
         threading.Thread(target=self._preparar_cerebro, daemon=True).start()
         threading.Thread(target=self._vigilar_clima, daemon=True).start()
         threading.Thread(target=self._servidor_unico, daemon=True).start()
@@ -197,6 +202,15 @@ class Jarvis:
                 self.decir(f"Núcleo de respaldo conectado, {self.trato}. Ahora también puedo ver su pantalla.")
                 return True
         return False
+
+    # ================================================================ celular
+    def conectar_celular(self, decirlo=False):
+        pin = self.enlace.nuevo_pin()
+        ip = servidor.ip_local()
+        self.hud.mostrar_pin(pin, ip, servidor.PUERTO, servidor.PIN_MINUTOS)
+        if decirlo:
+            digitos = " ".join(pin)
+            self.decir(f"Abra la app JARVIS en su celular y escriba el código {digitos}.")
 
     # ================================================================ micrófono y parlantes
     def abrir_ajustes_audio(self):
@@ -369,7 +383,7 @@ class Jarvis:
             quitada = extraer_orden(orden, self.cfg.get("palabras_activacion", ["jarvis"]))
             orden = quitada or orden
 
-    def procesar(self, orden):
+    def procesar(self, orden, origen=None):
         log.info("TÚ: %s", orden)
         self.hud.registrar("TÚ", orden)
         self.hud.estado("PROCESANDO", "> " + orden)
@@ -400,8 +414,11 @@ class Jarvis:
             return
         hilo = None
         if respuesta:
-            hilo = threading.Thread(target=self.decir, args=(respuesta,), daemon=True)
-            hilo.start()
+            if servidor.es_remoto():
+                self.decir(respuesta)          # pedido del celular: la respuesta se devuelve en orden
+            else:
+                hilo = threading.Thread(target=self.decir, args=(respuesta,), daemon=True)
+                hilo.start()
         infos, decires, salir = [], [], False
         for accion in plan.get("acciones", []):
             clase, texto = self.hab.ejecutar(accion)
@@ -432,6 +449,16 @@ class Jarvis:
         v = ventana_activa()
         if v:
             partes.append(f"ventana activa: {v[:80]}")
+        c = self.cerebro
+        if c.motor == "groq":
+            nucleo = f"tu núcleo de IA: Groq {c.groq_principal} (respaldo {c.groq_respaldo})"
+        elif c.motor:
+            nucleo = f"tu núcleo de IA: {c.motor} {c.modelo}"
+        else:
+            nucleo = "tu núcleo de IA: desconectado"
+        if c.modelo_gemini:
+            nucleo += f", Gemini {c.modelo_gemini} como respaldo y visión"
+        partes.append(nucleo)
         mem = self.alm_memoria.datos[-25:]
         if mem:
             partes.append("memoria del usuario: " + "; ".join(mem))
@@ -444,8 +471,11 @@ class Jarvis:
     def decir(self, texto, registrar=True):
         if not texto:
             return
+        remoto = servidor.capturar(texto)
         if registrar:
             self.hud.registrar("JARVIS", texto)
+        if remoto and not servidor.hablar_en_pc():
+            return                              # lo dirá el celular con su propia voz
         self.hud.estado("HABLANDO", texto[:90] + ("..." if len(texto) > 90 else ""))
         if self.voz:
             self.voz.decir(texto)
@@ -455,6 +485,8 @@ class Jarvis:
             self.hud.estado("EN ESPERA", "")
 
     def confirmar(self, pregunta):
+        if servidor.es_remoto():
+            return servidor.confirmar_remoto(pregunta)
         self.decir(pregunta)
         if not self.oido:
             return False
