@@ -3,7 +3,7 @@
 import os, sys, json, copy, threading, logging, unicodedata
 from logging.handlers import RotatingFileHandler
 
-VERSION = "2.7"
+VERSION = "2.8"
 
 # Carpeta del programa (funciona también dentro del .exe)
 BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))

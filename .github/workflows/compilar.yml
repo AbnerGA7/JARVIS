@@ -86,15 +86,13 @@ jobs:
             3. Al abrir JARVIS por primera vez, pega tu clave gratis de **Groq** (y opcionalmente la de **Gemini**).
 
             ## Novedades
-            - Aplausos mucho más fiables: el detector se adapta a tu micrófono y al ruido del cuarto.
-            - Jorge es la voz oficial de JARVIS (también sin internet usa la voz masculina más parecida).
-            - JARVIS conoce sus propias funciones: ya no dice que no puede activarse con aplausos.
-            - Voz de mayordomo: más pausada y grave (Centro de control → Voz → 🎩 Voz de mayordomo).
-            - El celular usa exactamente la misma voz de JARVIS que la PC.
-            - Centro de control: toda la configuración en una ventana (voz, cerebro, memoria, celular).
-            - Actualizaciones automáticas: JARVIS avisa y se actualiza con un clic (o diciendo «actualízate»).
-            - Habla más rápido: empieza con la primera frase mientras prepara las siguientes.
-            - Entiende mejor tus órdenes con Whisper de Groq.
-            - Notificaciones de Windows para los recordatorios.
-            - «Jarvis, buenos días»: resumen con clima, recordatorios, tareas y noticias.
-            - Portapapeles compartido y «Compartir con JARVIS» desde el celular.
+            - **Aprendizaje mutuo**: JARVIS guarda en una base de datos lo que aprende de ti (gustos, datos, hábitos, correcciones) y lo que te enseña.
+            - **Órdenes que se aprenden solas**: si le pides algo dos veces, a la tercera lo hace al instante. Dile «no, así no» y lo olvida.
+            - «¿Qué sabes de mí?», «¿Qué aprendimos hoy?» y «Hazme un repaso» (te pregunta lo que te enseñó).
+            - Retoma el hilo de la conversación aunque reinicies la PC.
+            - Nueva pestaña **Aprendizaje** en el Centro de control: ve, corrige o enséñale cosas.
+            - **Spotify de verdad**: «pon Queen en Spotify» abre Spotify y le da play (Centro de control → General → La música suena en).
+            - La voz de Jorge vuelve a su velocidad normal.
+            - Voz opcional de **ElevenLabs** (voces británicas tipo mayordomo, cuenta gratis); si se acaban los créditos vuelve Jorge.
+            - Más fluido: responde antes al terminar de hablar y las frases cortas se dicen al instante.
+            - Lee páginas web: «resúmeme esta página» lee la pestaña que tienes abierta.
