@@ -86,6 +86,9 @@ jobs:
             3. Al abrir JARVIS por primera vez, pega tu clave gratis de **Groq** (y opcionalmente la de **Gemini**).
 
             ## Novedades
+            - Aplausos mucho más fiables: el detector se adapta a tu micrófono y al ruido del cuarto.
+            - Jorge es la voz oficial de JARVIS (también sin internet usa la voz masculina más parecida).
+            - JARVIS conoce sus propias funciones: ya no dice que no puede activarse con aplausos.
             - Voz de mayordomo: más pausada y grave (Centro de control → Voz → 🎩 Voz de mayordomo).
             - El celular usa exactamente la misma voz de JARVIS que la PC.
             - Centro de control: toda la configuración en una ventana (voz, cerebro, memoria, celular).
