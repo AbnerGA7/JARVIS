@@ -15,6 +15,8 @@ API (JSON, con cabecera  Authorization: Bearer <token>):
   POST /api/raton       {"dx","dy"} | {"clic": "izq|der|doble"} | {"rueda": n}
   POST /api/teclado     {"texto"} | {"teclas": "ctrl+c"}
   GET  /api/apps                                           -> nombres de las apps instaladas
+  GET  /api/portapapeles  |  POST /api/portapapeles {"texto"} -> leer / copiar texto en la PC
+  POST /api/compartir     {"texto"}                        -> un enlace se abre en la PC; un texto se copia
 """
 import io, json, time, socket, secrets, datetime, threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -270,6 +272,9 @@ class Enlace:
                         self.send_header("Content-Length", str(len(datos)))
                         self.end_headers()
                         return self.wfile.write(datos)
+                    if url.path == "/api/portapapeles":
+                        import pyperclip
+                        return self._json(200, {"texto": (pyperclip.paste() or "")[:20000]})
                     if url.path == "/api/apps":
                         apps = sorted({v[0] for v in enlace.n.hab.apps.apps.values()}, key=str.lower)
                         return self._json(200, {"apps": apps})
@@ -304,6 +309,19 @@ class Enlace:
                                 n.decir(texto.split("] ", 1)[-1] if texto.startswith("[") else texto)
                         r = enlace.ejecutar_remoto(hacer, bool(d.get("hablar_en_pc")), bool(d.get("confirmado")))
                         return self._json(200, r)
+                    if url.path in ("/api/portapapeles", "/api/compartir"):
+                        import re as _re, pyperclip, webbrowser
+                        from notificar import notificar
+                        texto = str(d.get("texto", ""))[:20000]
+                        enlace_web = _re.match(r"^\s*(https?://\S+)\s*$", texto)
+                        if url.path == "/api/compartir" and enlace_web:
+                            webbrowser.open(enlace_web.group(1))
+                            n.hud.registrar("CELULAR", "Abrí el enlace que compartiste.")
+                            return self._json(200, {"ok": True, "mensaje": "Abierto en la PC"})
+                        pyperclip.copy(texto)
+                        n.hud.registrar("CELULAR", "Texto copiado al portapapeles de la PC.")
+                        notificar("JARVIS · Del celular", texto[:120] + ("…" if len(texto) > 120 else "") + "  (copiado)")
+                        return self._json(200, {"ok": True, "mensaje": "Copiado en la PC (Ctrl+V para pegar)"})
                     if url.path == "/api/raton":
                         enlace.raton(d)
                         return self._json(200, {"ok": True})
