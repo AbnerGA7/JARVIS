@@ -131,9 +131,23 @@ class HUD:
     def cerrar(self):
         self.q.put(("salir", None, None))
 
-    def ajustes_audio(self, microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar):
+    def ajustes_audio(self, microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar,
+                      sensibilidad=0.35, al_sensibilidad=None):
         """Abre la ventana de micrófono y parlantes (se puede llamar desde cualquier hilo)."""
-        self.q.put(("audio", (microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar), None))
+        self.q.put(("audio", (microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar,
+                              sensibilidad, al_sensibilidad), None))
+
+    def aplauso(self, tipo):
+        """tipo: 'suelto' o 'doble'. Lo muestra la prueba de aplausos."""
+        self.ultimo_aplauso = (tipo, time.time())
+
+    @property
+    def probando_aplausos(self):
+        v = getattr(self, "_ventana_audio", None)
+        try:
+            return bool(v and v.winfo_exists())
+        except Exception:
+            return False
 
     def mostrar_pin(self, pin, ip, puerto, minutos, url_remota=None):
         self.q.put(("pin", (pin, ip, puerto, minutos, url_remota), None))
@@ -357,7 +371,8 @@ class HUD:
         self.q.put(("pin_cerrar", None, None))
 
     # ================================================================ ventana de audio
-    def _dialogo_audio(self, microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar):
+    def _dialogo_audio(self, microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar,
+                       sensibilidad=0.35, al_sensibilidad=None):
         import threading
         from tkinter import ttk
         from audio import PREDETERMINADO
@@ -415,6 +430,31 @@ class HUD:
         combo_mic.bind("<<ComboboxSelected>>", mic_elegido)
 
         # --- parlantes
+        # --- prueba de aplausos
+        tk.Label(cuerpo, text="PRUEBA DE APLAUSOS", fg=c, bg=FONDO, font=("Consolas", 9, "bold")).pack(anchor="w")
+        fila_ap = tk.Frame(cuerpo, bg=FONDO)
+        fila_ap.pack(fill="x", pady=(4, 0))
+        indicador = tk.Label(fila_ap, text="Aplaude dos veces seguidas 👏👏", fg=TEXTO, bg="#081c2a", width=34,
+                             font=("Segoe UI", 11, "bold"), pady=8, highlightthickness=1, highlightbackground=tenue)
+        indicador.pack(side="left", fill="x", expand=True)
+        fila_sens = tk.Frame(cuerpo, bg=FONDO)
+        fila_sens.pack(fill="x", pady=(6, 18))
+        tk.Label(fila_sens, text="Sensibilidad", fg=tenue, bg=FONDO, font=("Segoe UI", 9)).pack(side="left")
+        # sensibilidad 1..10  <->  umbral de volumen 0.80..0.17 (más sensible = umbral más bajo)
+        sens_var = tk.DoubleVar(value=round(max(1.0, min(10.0, 1 + (0.80 - float(sensibilidad)) / 0.07)), 1))
+
+        def sens_cambio(_=None):
+            umbral = round(0.80 - (sens_var.get() - 1) * 0.07, 3)
+            if al_sensibilidad:
+                al_sensibilidad(umbral)
+        tk.Scale(fila_sens, from_=1, to=10, resolution=0.5, orient="horizontal", variable=sens_var, command=sens_cambio,
+                 bg=FONDO, fg=TEXTO, troughcolor="#081c2a", highlightthickness=0, activebackground=c, sliderrelief="flat",
+                 length=300, showvalue=True, font=("Consolas", 8)).pack(side="left", padx=10, fill="x", expand=True)
+        tk.Label(cuerpo, text="Si se activa solo con ruidos, baja la sensibilidad; si no detecta tus aplausos, súbela.",
+                 fg=tenue, bg=FONDO, font=("Segoe UI", 8)).pack(anchor="w", pady=(0, 14))
+        self.ultimo_aplauso = (None, 0.0)
+        aplausos_vistos = [0]
+
         tk.Label(cuerpo, text="PARLANTES / AUDÍFONOS (SALIDA)", fg=c, bg=FONDO, font=("Consolas", 9, "bold")).pack(anchor="w")
         parls = [("", PREDETERMINADO)] + [(p, p) for p in parlantes]
         parl_var = tk.StringVar(value=next((v for k, v in parls if k == actual_parl), PREDETERMINADO))
@@ -459,6 +499,17 @@ class HUD:
             ancho = medidor.winfo_width()
             col = c if nivel[0] < 0.85 else "#ffb000"
             medidor.create_rectangle(0, 0, ancho * min(1.0, nivel[0]), 16, fill=col, outline="")
+            tipo, cuando = getattr(self, "ultimo_aplauso", (None, 0.0))
+            edad = time.time() - cuando
+            if tipo == "doble" and edad < 2.5:
+                indicador.config(text="✓ ¡DOBLE APLAUSO DETECTADO!", fg="#000000", bg="#29ffd8")
+                aplausos_vistos[0] = 0
+            elif tipo == "suelto" and edad < 1.2:
+                if edad < 0.05:
+                    aplausos_vistos[0] += 1
+                indicador.config(text=f"👏 aplauso {min(aplausos_vistos[0], 9)}... (otro más)", fg="#000000", bg=c)
+            else:
+                indicador.config(text="Aplaude dos veces seguidas 👏👏", fg=TEXTO, bg="#081c2a")
             d.after(40, animar)
         d.update_idletasks()
         w, hh = d.winfo_reqwidth(), d.winfo_reqheight()
