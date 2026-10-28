@@ -31,6 +31,8 @@ REGLAS = [
     (r"^(cambia|cambiar|configura|configurar|elige|elegir|ajusta|ajustar) (el |los |de )?(microfono|parlantes|audifonos|"
      r"audio|salida de audio|entrada de audio)( y (los )?(parlantes|microfono))?$",
      lambda m: [{"tipo": "ajustes_audio", "valor": ""}]),
+    (r"^(conecta|conectar|vincula|vincular|enlaza|enlazar|empareja|emparejar) (mi |el |un )?(celular|telefono|movil|android)$",
+     lambda m: [{"tipo": "conectar_celular", "valor": ""}]),
 ]
 
 ABRIR = re.compile(r"^(abre|abreme|abras|abrir|inicia|inicies|ejecuta|ejecutes|lanza|pon|entra a|entra en|ve a|vayas a)"

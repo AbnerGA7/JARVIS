@@ -803,6 +803,11 @@ class Habilidades:
         import ctypes
         ctypes.windll.user32.LockWorkStation()
 
+    def h_conectar_celular(self, v, a):
+        conectar = getattr(self.n, "conectar_celular", None)
+        if conectar:
+            conectar(decirlo=True)
+
     def h_ajustes_audio(self, v, a):
         abrir = getattr(self.n, "abrir_ajustes_audio", None)
         if abrir:
