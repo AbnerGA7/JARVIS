@@ -30,7 +30,7 @@
   "microfono": "",
   "parlantes": "",
   "aplausos": true,
-  "sensibilidad_aplauso": 0.35,
+  "sensibilidad_aplauso": 0.18,
   "atajo_activar": "ctrl+alt+j",
   "atajo_callar": "ctrl+alt+s",
   "segundos_conversacion": 7,

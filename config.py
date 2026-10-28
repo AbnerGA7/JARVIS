@@ -3,7 +3,7 @@
 import os, sys, json, copy, threading, logging, unicodedata
 from logging.handlers import RotatingFileHandler
 
-VERSION = "2.6"
+VERSION = "2.7"
 
 # Carpeta del programa (funciona también dentro del .exe)
 BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -97,6 +97,12 @@ def cargar_config():
     if not cfg.get("voz_mayordomo") and cfg.get("velocidad_voz") == "+8%" and cfg.get("tono_voz") == "-6Hz":
         cfg["velocidad_voz"], cfg["tono_voz"] = defecto["velocidad_voz"], defecto["tono_voz"]
     cfg["voz_mayordomo"] = True
+    # 2.7: aplausos más sensibles (detector adaptativo) y Jorge como voz oficial de JARVIS
+    if not cfg.get("ajustes_27"):
+        if cfg.get("sensibilidad_aplauso") == 0.35:
+            cfg["sensibilidad_aplauso"] = defecto["sensibilidad_aplauso"]
+        cfg["voz"] = "es-MX-JorgeNeural"
+        cfg["ajustes_27"] = True
     try:
         with open(archivo, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
