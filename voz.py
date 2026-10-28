@@ -110,6 +110,20 @@ class Voz:
             else:
                 self._voz_windows(frase)
 
+    def sintetizar_bytes(self, texto):
+        """Audio MP3 con la voz de JARVIS (lo usa el celular para sonar igual que la PC)."""
+        archivo = self._sintetizar(limpiar(texto))
+        if not archivo:
+            return None
+        try:
+            with open(archivo, "rb") as f:
+                return f.read()
+        finally:
+            try:
+                os.remove(archivo)
+            except OSError:
+                pass
+
     def decir_en_paralelo(self, texto):
         h = threading.Thread(target=self.decir, args=(texto,), daemon=True)
         h.start()
@@ -130,8 +144,8 @@ class Voz:
 
             async def _gen():
                 com = edge_tts.Communicate(texto, self.cfg.get("voz", "es-MX-JorgeNeural"),
-                                           rate=self.cfg.get("velocidad_voz", "+8%"),
-                                           pitch=self.cfg.get("tono_voz", "-6Hz"))
+                                           rate=self.cfg.get("velocidad_voz", "-4%"),
+                                           pitch=self.cfg.get("tono_voz", "-12Hz"))
                 await asyncio.wait_for(com.save(archivo), timeout=20)
 
             asyncio.run(_gen())
