@@ -47,6 +47,9 @@
 | 💾 **Memoria** | Recuerda datos tuyos para siempre |
 | 🎓 **Aprende** | Le enseñas comandos y rutinas nuevas por voz |
 | 👁️ **Visión** | "¿Qué hay en mi pantalla?" con Gemini |
+| 📱 **App Android** | Háblale y controla la PC desde el celular, con WiFi o datos móviles ([JARVIS-Android](https://github.com/AbnerGA7/JARVIS-Android)) |
+| 🚀 **Inicia con Windows** | Arranca solo al encender la PC; se desactiva desde el menú |
+| 👏 **Prueba de aplausos** | Indicador en vivo y sensibilidad ajustable |
 | 🔒 **Seguro** | Confirma por voz antes de apagar, enviar o borrar |
 
 ## 🗣️ Ejemplos
@@ -108,6 +111,15 @@ compilar_exe.bat
 Genera `salida\JARVIS_Setup.exe` con PyInstaller + Inno Setup: icono propio, acceso en el
 escritorio y opción de iniciar con Windows.
 
+## 📱 Conectar el celular
+
+1. Instala **JARVIS.apk** desde [JARVIS-Android → Releases](https://github.com/AbnerGA7/JARVIS-Android/releases/latest).
+2. En la PC: clic derecho en el reactor → **Conectar celular** (o di *"Jarvis, conecta mi celular"*).
+3. Escribe en la app el código que aparece (ej. `K7P2-QX9M`).
+
+Funciona en la misma WiFi (conexión directa) o con datos móviles (túnel seguro de Cloudflare, sin abrir puertos).
+La dirección del túnel viaja cifrada con AES-256-GCM y cada celular usa un token secreto propio.
+
 ## ⚙️ Configuración
 
 Clic derecho en el reactor → **Configuración** (`%APPDATA%\JARVIS\config.json`):
@@ -123,6 +135,9 @@ Clic derecho en el reactor → **Configuración** (`%APPDATA%\JARVIS\config.json
 | `modelo_groq` / `modelo_groq_respaldo` | `auto` (recomendado) o el id de un modelo |
 | `gemini_api_key` / `modelo_gemini` | clave de Gemini · `auto` |
 | `segundos_conversacion` | `7` (0 lo desactiva) |
+| `iniciar_con_windows` | `true` |
+| `sensibilidad_aplauso` | umbral de volumen (también desde la prueba de aplausos) |
+| `acceso_remoto` | `true` (túnel para usarlo con datos móviles) |
 
 ## 🎓 Entrenamiento
 
@@ -142,7 +157,7 @@ Clic derecho en el reactor → **Configuración** (`%APPDATA%\JARVIS\config.json
 ## 🧰 Problemas comunes
 
 - **No me escucha:** revisa el micrófono predeterminado de Windows.
-- **Se activa solo con ruidos:** sube `sensibilidad_aplauso`.
+- **Aplausos:** clic derecho → *Micrófono y parlantes* → prueba de aplausos; ajusta la sensibilidad hasta que detecte tus dos aplausos.
 - **"Alcancé el límite gratuito":** el plan gratis de Groq tiene un tope diario; se renueva solo.
 - **Cambiar las claves:** clic derecho en el reactor → *Clave de Groq* / *Clave de Gemini*.
 - **Gemini (opcional):** crea tu clave gratis en [Google AI Studio](https://aistudio.google.com/apikey); activa el respaldo y la visión.
