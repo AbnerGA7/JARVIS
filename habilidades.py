@@ -614,8 +614,8 @@ class Habilidades:
             hud.estado("PROCESANDO", "Analizando la pantalla...")
         desc = self.n.cerebro.ver(archivo, v)
         if desc is None:
-            return ("info", "[ver_pantalla] No tengo instalado el módulo de visión (modelo 'moondream'). "
-                            "Dile al usuario que ejecute: ollama pull moondream")
+            return ("info", "[ver_pantalla] Todavía no tengo el módulo de visión activo. Dile al usuario que "
+                            "pronto podrá activarlo (llegará con Gemini) y que mientras tanto puede describirte lo que ve.")
         return ("info", f"[ver_pantalla] Descripción de la pantalla (en inglés, tradúcela y resume): {desc[:2500]}")
 
     # ------------------------------------------------------------ productividad
