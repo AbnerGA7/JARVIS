@@ -46,6 +46,9 @@ CONTROL DE LA PC
 - captura: (sin valor) guarda una captura de pantalla
 - configuracion: wifi, bluetooth, sonido, pantalla, bateria, actualizaciones, apps, fondo, notificaciones
 - ajustes_audio: (sin valor) abre la ventana para elegir el micrófono y los parlantes de JARVIS
+- resumen_dia: (sin valor) resumen del día: clima, recordatorios, tareas y noticias  [CONSULTA]
+- actualizar: (sin valor) busca e instala la última versión de JARVIS
+- centro_control: (sin valor) abre el Centro de control (configuración de JARVIS)
 - conectar_celular: (sin valor) muestra el PIN para vincular la app JARVIS del celular
 INFORMACIÓN  [CONSULTA]
 - hora / fecha: (sin valor)
@@ -359,6 +362,51 @@ class Cerebro:
                 continue
             r.raise_for_status()
         raise LimiteNube(60)
+
+    # ------------------------------------------------------------ oído preciso (Whisper en Groq)
+    ALUCINACIONES = ("gracias por ver", "subtitulos", "suscribete", "amara.org", "gracias por su atencion",
+                     "hasta la proxima", "musica de fondo", "¡gracias!")
+
+    def modelo_whisper(self):
+        if self.motor != "groq":
+            return None
+        disp = getattr(self, "groq_disponibles", [])
+        for m in ("whisper-large-v3-turbo", "whisper-large-v3"):
+            if m in disp:
+                return m
+        return next((m for m in disp if "whisper" in m), None)
+
+    def transcribir(self, pcm, tasa=16000):
+        """Convierte audio a texto con Whisper (más preciso en español). Devuelve None si no se pudo."""
+        modelo = self.modelo_whisper()
+        if not modelo or self.cfg.get("transcriptor", "groq") != "groq" or time.time() < getattr(self, "whisper_pausa", 0):
+            return None
+        import io, wave
+        buf = io.BytesIO()
+        with wave.open(buf, "wb") as w:
+            w.setnchannels(1)
+            w.setsampwidth(2)
+            w.setframerate(tasa)
+            w.writeframes(pcm)
+        try:
+            r = requests.post(GROQ + "/audio/transcriptions", headers={"Authorization": f"Bearer {self.clave_groq()}"},
+                              files={"file": ("voz.wav", buf.getvalue(), "audio/wav")},
+                              data={"model": modelo, "language": "es", "response_format": "json", "temperature": "0"},
+                              timeout=20)
+            if r.status_code == 429:
+                self.whisper_pausa = time.time() + 600      # límite gratis alcanzado: 10 min con el oído normal
+                return None
+            if r.status_code != 200:
+                log.warning("Whisper respondió %s: %s", r.status_code, r.text[:200])
+                return None
+            texto = (r.json().get("text") or "").strip()
+            from config import normalizar
+            if not texto or any(a in normalizar(texto) for a in map(normalizar, self.ALUCINACIONES)):
+                return ""
+            return texto
+        except requests.RequestException as e:
+            log.info("Whisper no disponible: %s", e)
+            return None
 
     # ------------------------------------------------------------ nube (Gemini: respaldo y visión)
     def clave_gemini(self):
