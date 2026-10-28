@@ -192,6 +192,7 @@ class CentroControl:
 
     def _voz(self, m):
         self._titulo(m, "VOZ DE JARVIS")
+        self.prov_var = self._opciones(m, "Servicio de voz", PROVEEDORES, self.cfg.get("voz_proveedor", "edge"))
         fila = tk.Frame(m, bg=FONDO)
         fila.pack(fill="x", pady=3)
         tk.Label(fila, text="Voz", fg=TEXTO, bg=FONDO, font=("Segoe UI", 10), width=24, anchor="w").pack(side="left")
@@ -200,13 +201,25 @@ class CentroControl:
         self.voz_var = tk.StringVar(value=actual)
         ttk.Combobox(fila, textvariable=self.voz_var, values=nombres, state="readonly", width=34, style="J.TCombobox",
                      font=("Segoe UI", 10)).pack(side="left")
-        self.vel_var = self._deslizador(m, "Velocidad", -30, 40, _numero(self.cfg.get("velocidad_voz", "-4%"), -4), "%")
-        self.tono_var = self._deslizador(m, "Tono", -20, 20, _numero(self.cfg.get("tono_voz", "-12Hz"), -12), "Hz")
+        self.vel_var = self._deslizador(m, "Velocidad", -30, 40, _numero(self.cfg.get("velocidad_voz", "+8%"), 8), "%")
+        self.tono_var = self._deslizador(m, "Tono", -20, 20, _numero(self.cfg.get("tono_voz", "-6Hz"), -6), "Hz")
+        self._titulo(m, "ELEVENLABS (OPCIONAL)")
+        self.eleven_clave = self._campo(m, "Clave de ElevenLabs", "elevenlabs_api_key", 46)
+        self.v.pop("elevenlabs_api_key", None)          # se guarda en _aplicar_voz
+        self.eleven_voz = self._opciones(m, "Voz (o pega un ID)", VOCES_ELEVEN,
+                                         self.cfg.get("elevenlabs_voz", VOCES_ELEVEN[0][0]), editable=True)
+        self.creditos = tk.Label(m, text="", fg=TENUE, bg=FONDO, font=("Consolas", 9))
+        self.creditos.pack(anchor="w", pady=(2, 0))
         fila2 = tk.Frame(m, bg=FONDO)
         fila2.pack(fill="x", pady=(10, 0))
         self._boton(fila2, "▶ PROBAR VOZ", self._probar_voz).pack(side="left")
-        self._boton(fila2, "🎩 VOZ DE MAYORDOMO", self._mayordomo).pack(side="left", padx=8)
-        self._nota(m, "El celular usa esta misma voz (la pide a tu PC). Sin PC, usa la voz de Android más parecida.")
+        self._boton(fila2, "↺ JORGE NORMAL", self._jorge_normal).pack(side="left", padx=8)
+        self._boton(fila2, "CLAVE GRATIS DE ELEVENLABS",
+                    lambda: webbrowser.open("https://elevenlabs.io/app/settings/api-keys")).pack(side="left")
+        self._nota(m, "El celular usa esta misma voz (la pide a tu PC). Si se acaban los créditos de ElevenLabs, "
+                      "JARVIS vuelve solo a la voz de Jorge.")
+        if self.cfg.get("elevenlabs_api_key"):
+            self._consultar_creditos(self.cfg["elevenlabs_api_key"])
         self._titulo(m, "OÍDO")
         self.trans_var = tk.StringVar(value="Whisper (Groq) — más preciso" if self.cfg.get("transcriptor", "groq") == "groq"
                                       else "Google — básico")
@@ -221,16 +234,54 @@ class CentroControl:
     def _aplicar_voz(self):
         clave = next((k for k, n in VOCES if n == self.voz_var.get()), self.cfg.get("voz"))
         self.cfg["voz"] = clave
+        self.cfg["voz_proveedor"] = self._clave(self.prov_var, PROVEEDORES)
+        nueva = self.eleven_clave.get().strip()
+        if nueva != self.cfg.get("elevenlabs_api_key", ""):
+            self.cfg["elevenlabs_api_key"] = nueva
+            if nueva:
+                self._consultar_creditos(nueva)
+        self.cfg["elevenlabs_voz"] = self._clave(self.eleven_voz, VOCES_ELEVEN) or VOCES_ELEVEN[0][0]
+        if self.j.voz:
+            self.j.voz.eleven_pausa = 0.0              # con clave o voz nueva se vuelve a intentar
+        if self.cfg["voz_proveedor"] == "elevenlabs" and not self.cfg["elevenlabs_api_key"]:
+            self.creditos.config(text="Pega tu clave de ElevenLabs para usar esa voz (mientras tanto hablo con Jorge).",
+                                 fg="#ffb000")
         self.cfg["velocidad_voz"] = f"{int(self.vel_var.get()):+d}%"
         self.cfg["tono_voz"] = f"{int(self.tono_var.get()):+d}Hz"
         self.cfg["transcriptor"] = "groq" if self.trans_var.get().startswith("Whisper") else "google"
 
-    def _mayordomo(self):
-        """Ajuste recomendado: voz masculina mexicana, pausada y grave, como el JARVIS del doblaje."""
+    def _jorge_normal(self):
+        """La voz de siempre: Jorge (México) a velocidad normal."""
+        self.prov_var.set(PROVEEDORES[0][1])
         self.voz_var.set(next(n for k, n in VOCES if k == "es-MX-JorgeNeural"))
-        self.vel_var.set(-4)
-        self.tono_var.set(-12)
+        self.vel_var.set(8)
+        self.tono_var.set(-6)
         self._probar_voz()
+
+    def _consultar_creditos(self, clave):
+        resultado = {}
+
+        def consultar():
+            from voz import creditos_elevenlabs
+            resultado.update(creditos_elevenlabs(clave))
+
+        def mostrar():
+            if not resultado:
+                self.d.after(300, mostrar)
+                return
+            if not self.creditos.winfo_exists():
+                return
+            if not resultado.get("ok"):
+                self.creditos.config(text="✗ " + resultado.get("error", "No pude comprobar la clave."), fg="#ff6b6b")
+            elif resultado.get("limite"):
+                quedan = max(0, resultado["limite"] - resultado["usados"])
+                self.creditos.config(text=f"✓ Clave válida · quedan {quedan:,} de {resultado['limite']:,} caracteres este mes"
+                                     .replace(",", " "), fg="#29ffd8")
+            else:
+                self.creditos.config(text="✓ Clave válida", fg="#29ffd8")
+        self.creditos.config(text="Comprobando la clave de ElevenLabs...", fg=TENUE)
+        threading.Thread(target=consultar, daemon=True).start()
+        self.d.after(300, mostrar)
 
     def _probar_voz(self):
         self._aplicar_voz()
