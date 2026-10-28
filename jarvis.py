@@ -76,6 +76,7 @@ class Jarvis:
             (lambda: "Ocultar el reactor" if self.cfg.get("mostrar_orbe", True) else "Mostrar el reactor", self.alternar_orbe),
             ("-", None),
             ("Conectar celular", self.conectar_celular),
+            ("Desvincular celulares", self.desvincular_celulares),
             ("Micrófono y parlantes", self.abrir_ajustes_audio),
             ("Clave de Groq (cerebro en la nube)", self.cambiar_clave),
             ("Clave de Gemini (respaldo y visión)", self.cambiar_clave_gemini),
@@ -205,12 +206,17 @@ class Jarvis:
 
     # ================================================================ celular
     def conectar_celular(self, decirlo=False):
+        if not self.enlace.activo:
+            self.hud.alerta("El enlace con el celular está desactivado en la configuración.")
+            return
         pin = self.enlace.nuevo_pin()
-        ip = servidor.ip_local()
-        self.hud.mostrar_pin(pin, ip, servidor.PUERTO, servidor.PIN_MINUTOS)
+        self.hud.mostrar_pin(pin, servidor.ip_local(), servidor.PUERTO, servidor.PIN_MINUTOS, self.enlace.url_remota)
         if decirlo:
-            digitos = " ".join(pin)
-            self.decir(f"Abra la app JARVIS en su celular y escriba el código {digitos}.")
+            self.decir(f"Abra la app JARVIS en su celular y escriba el código que aparece en pantalla.")
+
+    def desvincular_celulares(self):
+        self.enlace.desvincular_todos()
+        self.hud.registrar("JARVIS", "Todos los celulares fueron desvinculados.")
 
     # ================================================================ micrófono y parlantes
     def abrir_ajustes_audio(self):
@@ -569,7 +575,7 @@ def autoprueba(archivo):
     modulos = ["config", "cerebro", "habilidades", "rapido", "hud", "bandeja", "oido", "voz", "audio",
                "numpy", "requests", "sounddevice", "speech_recognition", "pygame", "edge_tts", "pyttsx3", "pyautogui",
                "pyperclip", "psutil", "pycaw.pycaw", "comtypes", "screen_brightness_control", "pystray", "PIL.Image",
-               "keyboard", "ddgs", "certifi", "tkinter"]
+               "keyboard", "ddgs", "certifi", "tkinter", "cryptography.hazmat.primitives.ciphers.aead", "servidor", "tunel"]
     for m in modulos:
         try:
             importlib.import_module(m)
@@ -582,6 +588,8 @@ def autoprueba(archivo):
                            ("config por defecto", lambda: bool(cargar_config().get("palabras_activacion"))),
                            ("entrenamiento", lambda: len(cargar_entrenamiento()) > 10),
                            ("certificados https", lambda: os.path.exists(__import__("certifi").where())),
+                           ("cifrado", lambda: __import__("tunel").descifrar(__import__("tunel").cifrar({"a": 1}, b"k" * 32), b"k" * 32) == {"a": 1}),
+                           ("cloudflared incluido", lambda: os.path.exists(os.path.join(BASE, "cloudflared.exe")) or not getattr(sys, "frozen", False)),
                            ("ventana tk", lambda: (lambda r: (r.update(), r.destroy(), True)[-1])(__import__("tkinter").Tk())),
                            ("reflejos", lambda: __import__("rapido").Reflejos(cargar_config(), Almacen("prueba_cmd.json", {}),
                                                                             None).interpretar("qué hora es") is not None)]:

@@ -2,12 +2,12 @@
 """
 Enlace con el celular (app JARVIS para Android).
 
-- Solo funciona dentro de tu red WiFi (no se expone a internet).
-- El celular se empareja una vez con un PIN de 6 dígitos que muestra la PC; luego usa un token secreto.
-- El celular encuentra la PC solo: envía "JARVIS?" por la red (UDP) y la PC le responde.
+- En la misma WiFi el celular se conecta directo (y encuentra la PC solo por UDP: "JARVIS?").
+- Desde cualquier lugar (datos móviles) entra por un túnel de Cloudflare cuya dirección se publica cifrada (tunel.py).
+- El celular se vincula una vez con un código que muestra la PC (p. ej. K7P2-QX9M); luego usa un token secreto.
 
 API (JSON, con cabecera  Authorization: Bearer <token>):
-  POST /api/emparejar   {"pin", "dispositivo"}            -> {"token", "pc", "groq_api_key"?}
+  POST /api/emparejar   {"pin", "dispositivo"}            -> {"token", "pc", "canal_id", "canal_clave", "url", ...}
   GET  /api/estado                                         -> CPU, RAM, batería, volumen, clima, núcleo
   POST /api/orden       {"texto", "hablar_en_pc", "confirmado"} -> {"respuestas": [...], "pregunta"?}
   POST /api/accion      {"tipo", "valor", ..., "confirmado"}      -> igual que /api/orden
@@ -16,10 +16,11 @@ API (JSON, con cabecera  Authorization: Bearer <token>):
   POST /api/teclado     {"texto"} | {"teclas": "ctrl+c"}
   GET  /api/apps                                           -> nombres de las apps instaladas
 """
-import io, json, time, random, socket, secrets, datetime, threading
+import io, json, time, socket, secrets, datetime, threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse, parse_qs
 from config import log, VERSION, Almacen
+import tunel as tun
 
 PUERTO = 47654
 PUERTO_DESCUBRIR = 47655
@@ -73,6 +74,7 @@ class Enlace:
         self.bloqueado_hasta = 0.0
         self.lock = threading.Lock()        # una orden remota a la vez
         self.activo = False
+        self.tunel = None
 
     # ------------------------------------------------------------ arranque
     def iniciar(self):
@@ -83,14 +85,33 @@ class Enlace:
             threading.Thread(target=self._responder_descubrimiento, daemon=True).start()
             self.activo = True
             log.info("Enlace con el celular activo en %s:%s", ip_local(), PUERTO)
+            if self.n.cfg.get("acceso_remoto", True):
+                self.tunel = tun.Tunel(PUERTO, al_cambiar=self._url_nueva, progreso=self.n.hud.progreso)
+                self.tunel.iniciar()
         except OSError as e:
             log.error("No pude abrir el enlace con el celular (puerto %s): %s", PUERTO, e)
 
     def nuevo_pin(self):
-        self.pin = f"{random.SystemRandom().randint(0, 999999):06d}"
+        """Código de vinculación (válido 5 min). Sirve en la misma WiFi y también por internet."""
+        self.pin = tun.codigo_nuevo()
         self.pin_vence = time.time() + PIN_MINUTOS * 60
         self.fallos = 0
+        self._anunciar_codigo()
         return self.pin
+
+    def _datos_conexion(self):
+        return {"ip": ip_local(), "puerto": PUERTO, "pc": socket.gethostname()}
+
+    def _anunciar_codigo(self):
+        if self.tunel and self.pin and time.time() < self.pin_vence:
+            self.tunel.anunciar_codigo(self.pin, self._datos_conexion())
+
+    def _url_nueva(self, url):
+        self._anunciar_codigo()          # si estabas vinculando, el celular recibe la dirección nueva
+        self.n.hud.registrar("JARVIS", "Acceso desde internet listo.")
+
+    def url_remota(self):
+        return self.tunel.url if self.tunel else None
 
     def _responder_descubrimiento(self):
         s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -116,7 +137,7 @@ class Enlace:
             return 429, {"error": "Demasiados intentos. Espera unos minutos."}
         if not self.pin or ahora > self.pin_vence:
             return 403, {"error": "En la PC: clic derecho en el reactor → Conectar celular, para ver el PIN."}
-        if not secrets.compare_digest(str(pin).strip(), self.pin):
+        if not secrets.compare_digest(tun.normalizar_codigo(pin), tun.normalizar_codigo(self.pin)):
             self.fallos += 1
             if self.fallos >= 5:
                 self.bloqueado_hasta = ahora + 300
@@ -128,7 +149,10 @@ class Enlace:
         self.dispositivos.guardar()
         self.pin = None
         cfg = self.n.cfg
-        respuesta = {"token": token, "pc": socket.gethostname(), "version": VERSION, "trato": cfg.get("trato", "señor")}
+        respuesta = {"token": token, "version": VERSION, "trato": cfg.get("trato", "señor"), **self._datos_conexion()}
+        if self.tunel:
+            respuesta.update(canal_id=self.tunel.canal_id, canal_clave=self.tunel.canal.datos["clave"],
+                             url=self.tunel.url)
         if cfg.get("compartir_clave_con_celular", True) and cfg.get("groq_api_key"):
             respuesta["groq_api_key"] = cfg["groq_api_key"]      # para el modo asistente sin PC
         self.n.hud.cerrar_pin()
@@ -136,6 +160,10 @@ class Enlace:
         threading.Thread(target=self.n.decir, args=(f"{nombre} vinculado correctamente, {cfg.get('trato', 'señor')}.",),
                          daemon=True).start()
         return 200, respuesta
+
+    def desvincular_todos(self):
+        self.dispositivos.datos.clear()
+        self.dispositivos.guardar()
 
     def autorizado(self, cabecera):
         token = (cabecera or "").removeprefix("Bearer ").strip()
