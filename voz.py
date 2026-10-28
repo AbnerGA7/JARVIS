@@ -1,10 +1,27 @@
 # -*- coding: utf-8 -*-
 """Voz de J.A.R.V.I.S.: voz neural (edge-tts) con respaldo sin internet (voz de Windows)."""
-import os, re, time, asyncio, tempfile, threading
+import os, re, time, queue, asyncio, tempfile, threading
 import numpy as np
 from config import log
 
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️]")
+
+
+def dividir(texto, minimo=45):
+    """Parte la respuesta en frases para empezar a hablar antes (las muy cortas se juntan)."""
+    partes = [p.strip() for p in re.split(r"(?<=[.!?…;:])\s+", texto) if p.strip()]
+    frases, actual = [], ""
+    for p in partes:
+        actual = (actual + " " + p).strip()
+        if len(actual) >= minimo:
+            frases.append(actual)
+            actual = ""
+    if actual:
+        if frases and len(actual) < 18:
+            frases[-1] += " " + actual
+        else:
+            frases.append(actual)
+    return frases or [texto]
 
 
 def limpiar(texto):
@@ -54,11 +71,7 @@ class Voz:
             if self.oido:
                 self.oido.ignorar.set()
             try:
-                archivo = self._sintetizar(texto)
-                if archivo:
-                    self._reproducir(archivo)
-                else:
-                    self._voz_windows(texto)
+                self._hablar_por_frases(dividir(texto))
             except Exception as e:
                 log.error("Error de voz: %s", e)
             finally:
@@ -68,6 +81,34 @@ class Voz:
                 if self.oido:
                     self.oido.vaciar()
                     self.oido.ignorar.clear()
+
+    def _hablar_por_frases(self, frases):
+        """Sintetiza la frase siguiente mientras suena la actual: la primera respuesta llega mucho antes."""
+        listas = queue.Queue()
+
+        def producir():
+            for frase in frases:
+                if self.callar.is_set():
+                    break
+                listas.put((frase, self._sintetizar(frase)))
+            listas.put(None)
+        threading.Thread(target=producir, daemon=True).start()
+        while True:
+            elemento = listas.get()
+            if elemento is None:
+                break
+            frase, archivo = elemento
+            if self.callar.is_set():
+                if archivo:
+                    try:
+                        os.remove(archivo)
+                    except OSError:
+                        pass
+                continue
+            if archivo:
+                self._reproducir(archivo)
+            else:
+                self._voz_windows(frase)
 
     def decir_en_paralelo(self, texto):
         h = threading.Thread(target=self.decir, args=(texto,), daemon=True)
