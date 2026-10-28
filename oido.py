@@ -181,7 +181,7 @@ class Oido:
                 else:
                     silencio = 0.0
                     con_voz += 1
-                if silencio > 0.75 or len(tramos) * 0.03 > limite:
+                if silencio > float(self.cfg.get("silencio_fin", 0.65)) or len(tramos) * 0.03 > limite:
                     break
         if con_voz < 8:  # menos de ~0.25 s de voz real: ruido
             return ""
