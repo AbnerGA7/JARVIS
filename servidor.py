@@ -17,6 +17,7 @@ API (JSON, con cabecera  Authorization: Bearer <token>):
   GET  /api/apps                                           -> nombres de las apps instaladas
   GET  /api/portapapeles  |  POST /api/portapapeles {"texto"} -> leer / copiar texto en la PC
   POST /api/compartir     {"texto"}                        -> un enlace se abre en la PC; un texto se copia
+  POST /api/voz           {"texto"}                        -> MP3 con la voz de JARVIS (el celular suena igual)
 """
 import io, json, time, socket, secrets, datetime, threading
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -194,7 +195,8 @@ class Enlace:
         datos = {"pc": socket.gethostname(), "version": VERSION, "cpu": psutil.cpu_percent(interval=0.2),
                  "ram": psutil.virtual_memory().percent, "bateria": round(bat.percent) if bat else None,
                  "cargando": bool(bat.power_plugged) if bat else None, "silencio": n.silencio,
-                 "clima": getattr(n, "clima_largo", None), "volumen": None, "nucleo": None}
+                 "clima": getattr(n, "clima_largo", None), "volumen": None, "nucleo": None,
+                 "voz": n.cfg.get("voz"), "velocidad_voz": n.cfg.get("velocidad_voz"), "tono_voz": n.cfg.get("tono_voz")}
         try:
             vol = n.hab._volumen()
             datos["volumen"] = round(vol.GetMasterVolumeLevelScalar() * 100)
@@ -309,6 +311,16 @@ class Enlace:
                                 n.decir(texto.split("] ", 1)[-1] if texto.startswith("[") else texto)
                         r = enlace.ejecutar_remoto(hacer, bool(d.get("hablar_en_pc")), bool(d.get("confirmado")))
                         return self._json(200, r)
+                    if url.path == "/api/voz":
+                        texto = str(d.get("texto", "")).strip()[:1200]
+                        audio = n.voz.sintetizar_bytes(texto) if (texto and n.voz) else None
+                        if not audio:
+                            return self._json(503, {"error": "Voz no disponible"})
+                        self.send_response(200)
+                        self.send_header("Content-Type", "audio/mpeg")
+                        self.send_header("Content-Length", str(len(audio)))
+                        self.end_headers()
+                        return self.wfile.write(audio)
                     if url.path in ("/api/portapapeles", "/api/compartir"):
                         import re as _re, pyperclip, webbrowser
                         from notificar import notificar
