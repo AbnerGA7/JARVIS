@@ -1,5 +1,5 @@
 ﻿; Instalador de J.A.R.V.I.S. (lo compila compilar_exe.bat con Inno Setup)
-#define AppVer "2.0"
+#define AppVer "2.1"
 
 [Setup]
 AppId={{9794BCDA-6E0F-4F74-B1AA-230D94D787B7}
@@ -39,14 +39,8 @@ Name: "{autodesktop}\JARVIS"; Filename: "{app}\JARVIS.exe"; IconFilename: "{app}
 Name: "{userstartup}\JARVIS"; Filename: "{app}\JARVIS.exe"; Tasks: inicio
 
 [Run]
-Filename: "https://ollama.com/download/windows"; Description: "Descargar Ollama (el cerebro de JARVIS — necesario)"; Flags: shellexec postinstall skipifsilent; Check: NoTieneOllama
+Filename: "https://console.groq.com/keys"; Description: "Abrir Groq para crear mi clave gratuita (cerebro en la nube)"; Flags: shellexec postinstall skipifsilent unchecked
 Filename: "{app}\JARVIS.exe"; Description: "Iniciar JARVIS ahora"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
 Filename: "taskkill"; Parameters: "/IM JARVIS.exe /F"; Flags: runhidden; RunOnceId: "CerrarJarvis"
-
-[Code]
-function NoTieneOllama: Boolean;
-begin
-  Result := not FileExists(ExpandConstant('{localappdata}\Programs\Ollama\ollama.exe'));
-end;
