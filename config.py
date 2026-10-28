@@ -3,7 +3,7 @@
 import os, sys, json, copy, threading, logging, unicodedata
 from logging.handlers import RotatingFileHandler
 
-VERSION = "2.0"
+VERSION = "2.1"
 
 # Carpeta del programa (funciona también dentro del .exe)
 BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
@@ -101,6 +101,15 @@ def cargar_config():
     return cfg
 
 
+def guardar_config(cfg):
+    """Guarda la configuración del usuario (por ejemplo, la clave de Groq)."""
+    archivo = ruta("config.json")
+    tmp = archivo + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(cfg, f, ensure_ascii=False, indent=2)
+    os.replace(tmp, archivo)
+
+
 def cargar_entrenamiento():
     """Ejemplos base + ejemplos propios del usuario (mis_ejemplos.json)."""
     with open(os.path.join(BASE, "datos", "entrenamiento.json"), encoding="utf-8") as f:
@@ -114,7 +123,7 @@ def cargar_entrenamiento():
                       f, ensure_ascii=False, indent=2)
     try:
         with open(propios, encoding="utf-8") as f:
-            ejemplos += json.load(f)
+            ejemplos += [dict(e, propio=True) for e in json.load(f) if isinstance(e, dict)]
     except Exception as e:
         log.warning("mis_ejemplos.json tiene un error: %s", e)
     return ejemplos
