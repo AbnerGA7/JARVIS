@@ -16,6 +16,8 @@ from hud import HUD
 from bandeja import iniciar_bandeja, iniciar_atajos
 import servidor
 import arranque
+import actualizador
+from notificar import notificar
 
 PUERTO_UNICO = 47653
 SALUDOS_ESCUCHA = ["¿Sí, {t}?", "A sus órdenes.", "Le escucho, {t}.", "Dígame, {t}.", "¿En qué le ayudo?"]
@@ -66,6 +68,7 @@ class Jarvis:
         self.silencio = False
         self.ejecutando = True
         self.cargando_cerebro = True
+        self.actualizacion = None
         self.en_conversacion = False
         self.oido = None
         self.voz = None
@@ -78,6 +81,9 @@ class Jarvis:
             ("-", None),
             ("Conectar celular", self.conectar_celular),
             ("Desvincular celulares", self.desvincular_celulares),
+            ("Centro de control", self.abrir_centro_control),
+            (lambda: f"⬆ Actualizar a la versión {self.actualizacion['version']}" if self.actualizacion
+             else "Buscar actualizaciones", lambda: threading.Thread(target=self._menu_actualizar, daemon=True).start()),
             ("Micrófono y parlantes", self.abrir_ajustes_audio),
             (lambda: ("✓ " if self.cfg.get("iniciar_con_windows", True) else "    ") + "Iniciar con Windows",
              self.alternar_inicio_windows),
@@ -114,6 +120,7 @@ class Jarvis:
             self.oido = Oido(self.cfg, al_aplaudir=self._doble_aplauso,
                              al_nivel=lambda n: setattr(self.hud, "nivel_mic", n))
             self.oido.al_aplauso_suelto = lambda: self.hud.aplauso("suelto")
+            self.oido.transcriptor = self.cerebro.transcribir
             self.oido.iniciar()
         except Exception as e:
             self.oido = None
@@ -132,6 +139,7 @@ class Jarvis:
         threading.Thread(target=self._preparar_cerebro, daemon=True).start()
         threading.Thread(target=self._vigilar_clima, daemon=True).start()
         threading.Thread(target=self._servidor_unico, daemon=True).start()
+        threading.Thread(target=self._vigilar_actualizaciones, daemon=True).start()
         time.sleep(4.3)  # deja terminar la animación de arranque
         if self.cfg.get("saludo_al_iniciar", True):
             self.decir(self._saludo())
@@ -266,6 +274,50 @@ class Jarvis:
         else:
             self.cfg["sensibilidad_aplauso"] = getattr(self, "_sensibilidad_antes", self.cfg.get("sensibilidad_aplauso", 0.35))
 
+    # ================================================================ actualizaciones
+    def _vigilar_actualizaciones(self):
+        time.sleep(45)
+        while self.ejecutando:
+            info = actualizador.buscar()
+            if info and (not self.actualizacion or info["version"] != self.actualizacion["version"]):
+                self.actualizacion = info
+                self.hud.alerta(f"Nueva versión {info['version']} disponible. Clic derecho en el reactor → Actualizar.")
+                notificar("JARVIS · Actualización disponible", f"Versión {info['version']}. Dime «actualízate» o usa el menú.")
+            time.sleep(6 * 3600)
+
+    def _menu_actualizar(self):
+        resultado = self.buscar_actualizacion()
+        if resultado and resultado[0] == "decir":
+            self.decir(resultado[1])
+
+    def buscar_actualizacion(self, desde_voz=False):
+        info = self.actualizacion or actualizador.buscar()
+        if not info:
+            return ("decir", f"Ya tengo la última versión, la {VERSION}, {self.trato}.")
+        self.actualizacion = info
+        if not actualizador.instalado():
+            return ("decir", f"Hay una versión nueva, la {info['version']}. Como me está ejecutando desde el código, "
+                             "actualíceme con git pull o instale el JARVIS_Setup.exe de GitHub.")
+        if desde_voz and not self.confirmar(f"Hay una versión nueva, la {info['version']}. ¿La instalo ahora? Me reiniciaré en un minuto."):
+            return ("decir", "De acuerdo, lo dejamos para después.")
+        self.decir(f"Descargando la versión {info['version']}. Volveré en un momento, {self.trato}.")
+        try:
+            actualizador.instalar(info, progreso=self.hud.progreso)
+        except Exception as e:
+            log.error("Falló la actualización: %s", e)
+            return ("decir", "No pude descargar la actualización. Inténtelo más tarde.")
+
+    # ================================================================ centro de control
+    def abrir_centro_control(self):
+        from centro import CentroControl
+        self.hud.en_ui(lambda: CentroControl(self.hud.root, self, ICONO))
+
+    def aplicar_config(self):
+        """Aplica lo que cambió en el Centro de control sin reiniciar."""
+        arranque.activar() if self.cfg.get("iniciar_con_windows", True) else arranque.desactivar()
+        self.hud.mostrar_orbe(self.cfg.get("mostrar_orbe", True))
+        self.hud.registrar("JARVIS", "Configuración aplicada.")
+
     def alternar_inicio_windows(self):
         activo = not self.cfg.get("iniciar_con_windows", True)
         self.cfg["iniciar_con_windows"] = activo
@@ -382,7 +434,7 @@ class Jarvis:
                 if not self.oido:
                     break
                 self.hud.estado("ESCUCHANDO", "Te escucho...")
-                orden = self.oido.escuchar(espera=8, limite=16,
+                orden = self.oido.escuchar(espera=8, limite=16, preciso=True,
                                            al_empezar=lambda: self.hud.estado("ESCUCHANDO", "· · ·"))
                 if not orden:
                     break
@@ -399,7 +451,7 @@ class Jarvis:
             if segundos <= 0:
                 break
             self.hud.estado("ESCUCHANDO", "¿Algo más? Puedes seguir hablando.")
-            orden = self.oido.escuchar(espera=segundos, limite=16, abortar=self.activar_evt,
+            orden = self.oido.escuchar(espera=segundos, limite=16, abortar=self.activar_evt, preciso=True,
                                        al_empezar=lambda: self.hud.estado("ESCUCHANDO", "· · ·"))
             if not orden:
                 break
@@ -528,6 +580,7 @@ class Jarvis:
                 pass
         threading.Thread(target=_pitido, daemon=True).start()
         self.hud.alerta(texto)
+        notificar("JARVIS · Recordatorio", texto)
         time.sleep(0.8)
         self.decir(f"{self.trato.capitalize()}, le recuerdo: {texto}", registrar=False)
 
@@ -597,7 +650,7 @@ def autoprueba(archivo):
     modulos = ["config", "cerebro", "habilidades", "rapido", "hud", "bandeja", "oido", "voz", "audio",
                "numpy", "requests", "sounddevice", "speech_recognition", "pygame", "edge_tts", "pyttsx3", "pyautogui",
                "pyperclip", "psutil", "pycaw.pycaw", "comtypes", "screen_brightness_control", "pystray", "PIL.Image",
-               "keyboard", "ddgs", "certifi", "tkinter", "cryptography.hazmat.primitives.ciphers.aead", "servidor", "tunel", "arranque"]
+               "keyboard", "ddgs", "certifi", "tkinter", "cryptography.hazmat.primitives.ciphers.aead", "servidor", "tunel", "arranque", "actualizador", "notificar", "centro", "winotify"]
     for m in modulos:
         try:
             importlib.import_module(m)
