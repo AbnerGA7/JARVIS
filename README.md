@@ -27,7 +27,9 @@
 <img src="docs/hud-conversando.png" width="780" alt="HUD conversando"><br>
 <sub>Conversando — registro de comandos, sistemas en vivo y ecualizador de voz</sub><br><br>
 <img src="docs/reactor.png" width="140" alt="Reactor flotante"><br>
-<sub>Reactor flotante en reposo (clic para hablar)</sub>
+<sub>Reactor flotante en reposo (clic para hablar)</sub><br><br>
+<img src="docs/centro-control.png" width="560" alt="Centro de control"><br>
+<sub>Centro de control: toda la configuración sin tocar archivos</sub>
 </div>
 
 ## 🚀 Características
@@ -47,6 +49,12 @@
 | 💾 **Memoria** | Recuerda datos tuyos para siempre |
 | 🎓 **Aprende** | Le enseñas comandos y rutinas nuevas por voz |
 | 👁️ **Visión** | "¿Qué hay en mi pantalla?" con Gemini |
+| 🎛️ **Centro de control** | Voz (con vista previa), cerebro, memoria, comandos aprendidos y celular en una ventana |
+| ⬆️ **Se actualiza solo** | Avisa cuando hay versión nueva y se instala con un clic o diciendo «actualízate» |
+| ⚡ **Habla por frases** | Empieza a responder mientras prepara el resto: se siente instantáneo |
+| 👂 **Oído preciso** | Whisper de Groq para entender mejor tus órdenes en español |
+| 🔔 **Notificaciones** | Los recordatorios también aparecen como notificación de Windows |
+| ☀️ **Resumen del día** | «Jarvis, buenos días»: clima, recordatorios, tareas y noticias |
 | 📱 **App Android** | Háblale y controla la PC desde el celular, con WiFi o datos móviles ([JARVIS-Android](https://github.com/AbnerGA7/JARVIS-Android)) |
 | 🚀 **Inicia con Windows** | Arranca solo al encender la PC; se desactiva desde el menú |
 | 👏 **Prueba de aplausos** | Indicador en vivo y sensibilidad ajustable |
@@ -64,6 +72,8 @@
 "Jarvis, ¿a cuánto está el dólar?"           "Jarvis, ¿qué hay en mi pantalla?"
 "Jarvis, cuando te diga modo cine, pausa todo, baja el brillo y abre Netflix"
 "Jarvis, activa el modo gamer"
+"Jarvis, buenos días"                        "Jarvis, actualízate"
+"Jarvis, abre el centro de control"          "Jarvis, conecta mi celular"
 ```
 
 ## 🏗️ Arquitectura
@@ -122,7 +132,7 @@ La dirección del túnel viaja cifrada con AES-256-GCM y cada celular usa un tok
 
 ## ⚙️ Configuración
 
-Clic derecho en el reactor → **Configuración** (`%APPDATA%\JARVIS\config.json`):
+Clic derecho en el reactor → **Centro de control** (o di *"Jarvis, abre el centro de control"*). Todo se guarda en `%APPDATA%\JARVIS\config.json`:
 
 | Clave | Ejemplo |
 |---|---|
