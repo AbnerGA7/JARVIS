@@ -54,7 +54,7 @@ CONSULTAS = {"hora", "fecha", "lo_aprendido", "lecciones", "repaso"}
 ABRIR = re.compile(r"^(abre|abreme|abras|abrir|inicia|inicies|ejecuta|ejecutes|lanza|pon|entra a|entra en|ve a|vayas a)"
                    r"\s+(el |la |los |las |mi )?(.+)$")
 # formas educadas de pedir algo: se quitan antes de buscar un reflejo
-CORTESIA = re.compile(r"^(oye |hey |ey |por favor |porfa )*((yo )?quiero que |necesito que |(me )?puedes |podrias |"
+CORTESIA = re.compile(r"^(oye |hey |ey |jarvis |yarvis |por favor |porfa )*((yo )?quiero que |necesito que |(me )?puedes |podrias |"
                       r"(me )?podrias |seria posible que |te pido que |hazme el favor de |ayudame a )?")
 
 
