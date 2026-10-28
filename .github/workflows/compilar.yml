@@ -86,6 +86,8 @@ jobs:
             3. Al abrir JARVIS por primera vez, pega tu clave gratis de **Groq** (y opcionalmente la de **Gemini**).
 
             ## Novedades
+            - Voz de mayordomo: más pausada y grave (Centro de control → Voz → 🎩 Voz de mayordomo).
+            - El celular usa exactamente la misma voz de JARVIS que la PC.
             - Centro de control: toda la configuración en una ventana (voz, cerebro, memoria, celular).
             - Actualizaciones automáticas: JARVIS avisa y se actualiza con un clic (o diciendo «actualízate»).
             - Habla más rápido: empieza con la primera frase mientras prepara las siguientes.
