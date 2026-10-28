@@ -1,5 +1,5 @@
 ﻿; Instalador de J.A.R.V.I.S. (lo compila compilar_exe.bat con Inno Setup)
-#define AppVer "2.4"
+#define AppVer "2.5"
 
 [Setup]
 AppId={{9794BCDA-6E0F-4F74-B1AA-230D94D787B7}
@@ -42,7 +42,7 @@ Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: 
 
 [Run]
 Filename: "https://console.groq.com/keys"; Description: "Abrir Groq para crear mi clave gratuita (cerebro en la nube)"; Flags: shellexec postinstall skipifsilent unchecked
-Filename: "{app}\JARVIS.exe"; Description: "Iniciar JARVIS ahora"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\JARVIS.exe"; Description: "Iniciar JARVIS ahora"; Flags: nowait postinstall
 
 [UninstallRun]
 Filename: "taskkill"; Parameters: "/IM JARVIS.exe /F"; Flags: runhidden; RunOnceId: "CerrarJarvis"
