@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """
 Reflejos de J.A.R.V.I.S.: órdenes comunes que se ejecutan al instante, sin pasar por la IA.
-Incluye los comandos que el usuario le enseña ("aprender").
+Incluye los comandos que el usuario le enseña ("aprender") y las órdenes que JARVIS aprende solo al repetirlas.
 """
 import re, random, difflib
 from config import normalizar
@@ -39,13 +39,29 @@ REGLAS = [
      lambda m: [{"tipo": "centro_control", "valor": ""}]),
     (r"^(conecta|conectar|vincula|vincular|enlaza|enlazar|empareja|emparejar) (mi |el |un )?(celular|telefono|movil|android)$",
      lambda m: [{"tipo": "conectar_celular", "valor": ""}]),
+    # aprendizaje mutuo
+    (r"^(que (sabes|recuerdas|conoces) de mi|que (has )?aprendido de mi|que (me )?(has )?aprendido|que aprendiste( de mi)?|"
+     r"que tanto me conoces|cuanto me conoces)$", lambda m: [{"tipo": "lo_aprendido", "valor": ""}]),
+    (r"^(que (aprendimos|aprendi|me ensenaste|me has ensenado)( hoy| esta semana| juntos)?|"
+     r"(dame un |haz un )?resumen de lo que (aprendimos|aprendi|me ensenaste)( hoy| esta semana)?)$",
+     lambda m: [{"tipo": "lecciones", "valor": "semana" if "semana" in m.group(0) else "hoy"}]),
+    (r"^(hazme un repaso|repasemos|vamos a repasar|preguntame (algo )?(de|sobre) lo que (aprendi|me ensenaste|aprendimos)|"
+     r"tomame (un )?examen|hazme preguntas( de repaso)?)$", lambda m: [{"tipo": "repaso", "valor": ""}]),
 ]
+
+CONSULTAS = {"hora", "fecha", "lo_aprendido", "lecciones", "repaso"}
 
 ABRIR = re.compile(r"^(abre|abreme|abras|abrir|inicia|inicies|ejecuta|ejecutes|lanza|pon|entra a|entra en|ve a|vayas a)"
                    r"\s+(el |la |los |las |mi )?(.+)$")
 # formas educadas de pedir algo: se quitan antes de buscar un reflejo
 CORTESIA = re.compile(r"^(oye |hey |ey |por favor |porfa )*((yo )?quiero que |necesito que |(me )?puedes |podrias |"
                       r"(me )?podrias |seria posible que |te pido que |hazme el favor de |ayudame a )?")
+
+
+def clave_orden(orden):
+    """La orden sin saludos ni formas educadas: así "Jarvis, por favor abre mi música" y "abre mi música" son iguales."""
+    n = normalizar(orden)
+    return CORTESIA.sub("", n, count=1).replace(" por favor", "").strip(" ,.")
 
 
 MULETILLAS = re.compile(r"^(por favor |oye |activa |activar |pon |ponme |inicia |ejecuta |haz |el |la |los |las |mi |un |una )+")
@@ -56,17 +72,17 @@ def limpiar_muletillas(n):
 
 
 class Reflejos:
-    def __init__(self, cfg, comandos, apps):
+    def __init__(self, cfg, comandos, apps, memoria=None):
         self.cfg = cfg
         self.comandos = comandos      # Almacen con {"frase": [acciones]}
         self.apps = apps              # IndiceApps
+        self.memoria = memoria        # Memoria (órdenes aprendidas solas)
 
     def _ok(self):
         return random.choice(OK).format(t=self.cfg.get("trato", "señor"))
 
     def interpretar(self, orden):
-        n = normalizar(orden)
-        n = CORTESIA.sub("", n, count=1).replace(" por favor", "").strip()
+        n = clave_orden(orden)
         if not n:
             return None
         # 1) comandos aprendidos
@@ -76,12 +92,17 @@ class Reflejos:
             parecido = difflib.get_close_matches(limpiar_muletillas(n), list(claves), n=1, cutoff=0.86)
             if parecido:
                 return {"respuesta": self._ok(), "acciones": list(aprendidos[claves[parecido[0]]])}
+        # 1b) órdenes que JARVIS aprendió solo porque se las pediste varias veces
+        if self.memoria:
+            patron = self.memoria.buscar_patron(n)
+            if patron:
+                return {"respuesta": patron["respuesta"] or self._ok(), "acciones": patron["acciones"], "patron": patron["frase"]}
         # 2) reflejos fijos
         for patron, hacer in REGLAS:
             m = re.match(patron, n)
             if m:
                 acciones = hacer(m)
-                directo = acciones[0]["tipo"] in ("hora", "fecha")
+                directo = acciones[0]["tipo"] in CONSULTAS
                 return {"respuesta": "" if directo else self._ok(), "acciones": acciones}
         # 3) "abre X" cuando X es un sitio o una app conocida con seguridad
         m = ABRIR.match(n)
