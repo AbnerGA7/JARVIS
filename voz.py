@@ -315,3 +315,18 @@ class Voz:
             motor.stop()
         except Exception as e:
             log.error("Tampoco funcionó la voz de Windows: %s", e)
+
+
+def creditos_elevenlabs(clave):
+    """Cuántos caracteres gratis quedan este mes en ElevenLabs: {"ok", "usados", "limite", "reinicio", "error"}."""
+    try:
+        r = requests.get(f"{ELEVEN}/user/subscription", headers={"xi-api-key": clave}, timeout=8)
+        if r.status_code == 200:
+            d = r.json()
+            return {"ok": True, "usados": d.get("character_count", 0), "limite": d.get("character_limit", 0),
+                    "reinicio": d.get("next_character_count_reset_unix")}
+        if r.status_code == 401 and "permission" in r.text.lower():
+            return {"ok": True, "usados": None, "limite": None, "reinicio": None}   # clave válida sin permiso de lectura
+        return {"ok": False, "error": "La clave no es válida." if r.status_code == 401 else f"Error {r.status_code}"}
+    except requests.RequestException as e:
+        return {"ok": False, "error": f"Sin conexión con ElevenLabs ({e.__class__.__name__})"}
