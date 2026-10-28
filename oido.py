@@ -16,6 +16,7 @@ class Oido:
     def __init__(self, cfg, al_aplaudir=None, al_nivel=None):
         self.cfg = cfg
         self.al_aplaudir = al_aplaudir or (lambda: None)
+        self.al_aplauso_suelto = lambda: None     # cada aplauso individual (para la prueba de aplausos)
         self.al_nivel = al_nivel or (lambda n: None)
         self.cola = queue.Queue(maxsize=2000)
         self.ignorar = threading.Event()   # activo mientras Jarvis habla
@@ -103,6 +104,10 @@ class Oido:
                 self._candidato = None
                 if energia / n < p0 * 0.22:
                     self._aplausos = [a for a in self._aplausos if ahora - a < 1.0] + [t0]
+                    try:
+                        self.al_aplauso_suelto()
+                    except Exception:
+                        pass
                     if len(self._aplausos) >= 2:
                         sep = self._aplausos[-1] - self._aplausos[-2]
                         if 0.12 < sep < 0.9 and ahora > self._enfriar:
