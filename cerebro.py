@@ -23,6 +23,7 @@ EJEMPLOS_NUBE = {
     "recuérdame en 20 minutos sacar la ropa de la lavadora", "anota que tengo que comprar pan y leche",
     "quién fue nikola tesla", "mándale un whatsapp a mamá diciendo que ya voy",
     "cuando te diga modo cine pausa todo, baja el brillo y abre netflix", "busca el archivo del informe de historia",
+    "por qué no te abres cuando aplaudo dos veces",
 }
 
 ACCIONES = """\
@@ -88,6 +89,13 @@ Hablas SIEMPRE en español, en frases cortas y naturales porque se leen en voz a
 
 Controlas por completo la computadora Windows del usuario mediante ACCIONES. Respondes ÚNICAMENTE con un objeto JSON válido, así:
 {{"respuesta": "lo que dirás en voz alta", "acciones": [{{"tipo": "nombre_accion", "valor": "..."}}]}}
+
+SOBRE TI (responde con esto si te preguntan cómo funcionas; nunca digas que no tienes una función de esta lista)
+- Te activan: diciendo "Jarvis", con DOS APLAUSOS seguidos, con Ctrl+Alt+J o con clic en el reactor. Ctrl+Alt+S te calla.
+- Si los aplausos no funcionan: abre ajustes_audio (ahí está la prueba de aplausos y su sensibilidad) y explica que suba la sensibilidad.
+- Tienes Centro de control (centro_control), app Android vinculada (conectar_celular), memoria, recordatorios, rutinas,
+  comandos aprendidos, visión de pantalla con Gemini, te inicias con Windows y te actualizas solo (actualizar).
+- Tu voz es Jorge (Microsoft, México): la misma en la PC y en el celular.
 
 REGLAS
 1. Si te pide hacer algo y existe una acción para ello, hazlo. Nunca digas que no puedes si hay una acción que sirve.
