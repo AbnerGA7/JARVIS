@@ -103,6 +103,13 @@ def cargar_config():
             cfg["sensibilidad_aplauso"] = defecto["sensibilidad_aplauso"]
         cfg["voz"] = "es-MX-JorgeNeural"
         cfg["ajustes_27"] = True
+    # 2.8: la voz vuelve a su velocidad normal y la música va a Spotify si lo tienes instalado
+    if not cfg.get("ajustes_28"):
+        if cfg.get("velocidad_voz") == "-4%" and cfg.get("tono_voz") == "-12Hz":
+            cfg["velocidad_voz"], cfg["tono_voz"] = defecto["velocidad_voz"], defecto["tono_voz"]
+        if cfg.get("musica") == "youtube":
+            cfg["musica"] = "auto"
+        cfg["ajustes_28"] = True
     try:
         with open(archivo, "w", encoding="utf-8") as f:
             json.dump(cfg, f, ensure_ascii=False, indent=2)
