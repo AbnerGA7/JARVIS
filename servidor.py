@@ -196,7 +196,7 @@ class Enlace:
                  "ram": psutil.virtual_memory().percent, "bateria": round(bat.percent) if bat else None,
                  "cargando": bool(bat.power_plugged) if bat else None, "silencio": n.silencio,
                  "clima": getattr(n, "clima_largo", None), "volumen": None, "nucleo": None,
-                 "voz": n.cfg.get("voz"), "velocidad_voz": n.cfg.get("velocidad_voz"), "tono_voz": n.cfg.get("tono_voz")}
+                 "voz": n.voz.nombre() if n.voz else n.cfg.get("voz"), "velocidad_voz": n.cfg.get("velocidad_voz"), "tono_voz": n.cfg.get("tono_voz")}
         try:
             vol = n.hab._volumen()
             datos["volumen"] = round(vol.GetMasterVolumeLevelScalar() * 100)

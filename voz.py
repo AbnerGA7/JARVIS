@@ -15,6 +15,8 @@ CACHE = os.path.join(DATOS, "cache_voz")
 CACHE_MAX_CARACTERES = 140
 CACHE_MAX_ARCHIVOS = 600
 ELEVEN = "https://api.elevenlabs.io/v1"
+NOMBRES_ELEVEN = {"onwK4e9ZLuTAKqWW03F9": "Daniel", "JBFqnCBsd6RMkjVDRZzb": "George", "N2lVS1w4EtoT3dr4eOWO": "Callum",
+                  "nPczCjzI2devNBz1zQrb": "Brian", "TX3LPaxmHKxFdv7VOQHJ": "Liam"}
 
 _EMOJI = re.compile("[\U0001F000-\U0001FAFF☀-➿️]")
 
@@ -154,6 +156,12 @@ class Voz:
     def usa_elevenlabs(self):
         return (self.cfg.get("voz_proveedor") == "elevenlabs" and bool(self.cfg.get("elevenlabs_api_key"))
                 and time.time() >= self.eleven_pausa)
+
+    def nombre(self):
+        """Nombre legible de la voz que está sonando (lo muestra el celular)."""
+        if self.usa_elevenlabs():
+            return "ElevenLabs · " + NOMBRES_ELEVEN.get(self.cfg.get("elevenlabs_voz"), "voz personalizada")
+        return self.cfg.get("voz", "es-MX-JorgeNeural")
 
     def _firma(self, texto):
         if self.usa_elevenlabs():
