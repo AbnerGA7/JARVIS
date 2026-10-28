@@ -135,8 +135,8 @@ class HUD:
         """Abre la ventana de micrófono y parlantes (se puede llamar desde cualquier hilo)."""
         self.q.put(("audio", (microfonos, parlantes, actual_mic, actual_parl, al_elegir_mic, al_probar_parl, al_guardar), None))
 
-    def mostrar_pin(self, pin, ip, puerto, minutos):
-        self.q.put(("pin", (pin, ip, puerto, minutos), None))
+    def mostrar_pin(self, pin, ip, puerto, minutos, url_remota=None):
+        self.q.put(("pin", (pin, ip, puerto, minutos, url_remota), None))
 
     def pedir_clave(self, error=None, servicio="groq"):
         """Muestra la ventana para pegar una clave (groq o gemini) y espera. Devuelve la clave o None."""
@@ -301,7 +301,7 @@ class HUD:
             pass
 
     # ================================================================ ventana del PIN del celular
-    def _dialogo_pin(self, pin, ip, puerto, minutos):
+    def _dialogo_pin(self, pin, ip, puerto, minutos, url_remota=None):
         c = COLORES["EN LÍNEA"]
         tenue = mezclar(c, FONDO, 0.55)
         if getattr(self, "_ventana_pin", None) and self._ventana_pin.winfo_exists():
@@ -319,13 +319,15 @@ class HUD:
         cuerpo = tk.Frame(d, bg=FONDO, padx=34, pady=24)
         cuerpo.pack(fill="both", expand=True)
         tk.Label(cuerpo, text="◤ CONECTAR CELULAR", fg=c, bg=FONDO, font=("Consolas", 14, "bold")).pack(anchor="w")
-        tk.Label(cuerpo, text="Abre la app JARVIS en tu Android (en la misma red WiFi) y escribe este código:",
+        tk.Label(cuerpo, text="Abre la app JARVIS en tu Android y escribe este código de vinculación:",
                  fg=TEXTO, bg=FONDO, font=("Segoe UI", 10)).pack(anchor="w", pady=(10, 6))
-        tk.Label(cuerpo, text=" ".join(pin), fg=c, bg=FONDO, font=("Consolas", 40, "bold")).pack(pady=(4, 2))
+        tk.Label(cuerpo, text=pin, fg=c, bg=FONDO, font=("Consolas", 40, "bold")).pack(pady=(4, 2))
         restante = tk.Label(cuerpo, text="", fg=tenue, bg=FONDO, font=("Consolas", 9))
         restante.pack()
-        tk.Label(cuerpo, text=f"Si la app no encuentra la PC sola, usa la dirección:  {ip}:{puerto}", fg=tenue,
-                 bg=FONDO, font=("Segoe UI", 9)).pack(anchor="w", pady=(16, 0))
+        internet = tk.Label(cuerpo, text="", fg=TEXTO, bg=FONDO, font=("Segoe UI", 9))
+        internet.pack(anchor="w", pady=(16, 0))
+        tk.Label(cuerpo, text=f"En la misma WiFi también puedes usar la dirección:  {ip}:{puerto}", fg=tenue,
+                 bg=FONDO, font=("Segoe UI", 9)).pack(anchor="w")
         tk.Label(cuerpo, text="Si Windows pregunta por el firewall, permite el acceso en «Redes privadas».", fg=tenue,
                  bg=FONDO, font=("Segoe UI", 9)).pack(anchor="w")
         tk.Button(cuerpo, text="LISTO", command=d.destroy, bg=c, fg="#000000", activebackground=TEXTO, relief="flat",
@@ -340,6 +342,10 @@ class HUD:
                 d.destroy()
                 return
             restante.config(text=f"válido por {s // 60}:{s % 60:02d}")
+            url = url_remota() if callable(url_remota) else url_remota
+            internet.config(text="● Funciona con WiFi o con datos móviles (acceso por internet listo)" if url else
+                            "○ Preparando el acceso por internet... (en la misma WiFi ya funciona)",
+                            fg="#29ffd8" if url else "#ffb000")
             d.after(500, contar)
         d.update_idletasks()
         w, hh = d.winfo_reqwidth(), d.winfo_reqheight()
