@@ -9,8 +9,13 @@ from config import log, SIN_VENTANA, cargar_entrenamiento
 
 OLLAMA = "http://127.0.0.1:11434"
 GROQ = "https://api.groq.com/openai/v1"
-GROQ_PRINCIPAL = "llama-3.3-70b-versatile"   # el más listo del plan gratis
-GROQ_RESPALDO = "llama-3.1-8b-instant"       # súper rápido y con límite diario mucho más alto
+# Groq cambia sus modelos seguido: JARVIS consulta cuáles tiene tu cuenta y elige en este orden
+GROQ_PREFERIDOS = ("llama-3.3-70b-versatile", "openai/gpt-oss-120b", "moonshotai/kimi-k2-instruct",
+                   "meta-llama/llama-4-maverick-17b-128e-instruct", "qwen/qwen3-32b",
+                   "meta-llama/llama-4-scout-17b-16e-instruct", "openai/gpt-oss-20b", "llama-3.1-8b-instant")
+GROQ_RAPIDOS = ("llama-3.1-8b-instant", "openai/gpt-oss-20b", "meta-llama/llama-4-scout-17b-16e-instruct",
+                "qwen/qwen3-32b", "openai/gpt-oss-120b")
+GEMINI = "https://generativelanguage.googleapis.com/v1beta"
 
 # En la nube cada palabra cuenta para el límite gratis: se envían solo los ejemplos más didácticos
 EJEMPLOS_NUBE = {
@@ -99,6 +104,9 @@ class Cerebro:
         self.modelo = None
         self.motor = None            # "groq" (nube) u "ollama" (local)
         self.respaldo_hasta = 0.0    # mientras sea futuro, se usa el modelo de respaldo de Groq
+        self.modelo_gemini = None    # se elige solo según la clave (respaldo y visión)
+        self.groq_disponibles, self.groq_principal, self.groq_respaldo = [], None, None
+        self.ultimo_motor = None     # quién respondió la última vez (para el HUD)
         self.historial = []
         self.ejemplos = []
         self.ejemplos_nube = []
@@ -221,64 +229,234 @@ class Cerebro:
         return self.cfg.get("proveedor", "groq") == "groq"
 
     @staticmethod
-    def probar_groq(clave):
-        """Comprueba una clave. Devuelve (ok, mensaje)."""
+    def modelos_groq(clave):
+        """Lista los modelos que esta clave puede usar. Devuelve (lista o None, mensaje)."""
         clave = (clave or "").strip()
         if not clave.startswith("gsk_"):
-            return False, "Las claves de Groq empiezan con gsk_"
+            return None, "Las claves de Groq empiezan con gsk_"
         try:
             r = requests.get(GROQ + "/models", headers={"Authorization": f"Bearer {clave}"}, timeout=10)
             if r.status_code == 200:
-                return True, "Clave válida"
+                datos = r.json().get("data", []) if isinstance(r.json(), dict) else []
+                return [m.get("id", "") for m in datos if m.get("active", True) is not False and m.get("id")], "Clave válida"
             if r.status_code in (401, 403):
-                return False, "Groq rechazó la clave. Cópiala de nuevo"
-            return False, f"Groq respondió {r.status_code}. Intenta en un momento"
+                return None, "Groq rechazó la clave. Cópiala de nuevo"
+            return None, f"Groq respondió {r.status_code}. Intenta en un momento"
         except requests.RequestException:
-            return False, "Sin conexión con Groq. Revisa tu internet"
+            return None, "Sin conexión con Groq. Revisa tu internet"
+
+    @classmethod
+    def probar_groq(cls, clave):
+        """Comprueba una clave. Devuelve (ok, mensaje)."""
+        lista, msg = cls.modelos_groq(clave)
+        return lista is not None, msg
+
+    @staticmethod
+    def elegir_modelo_groq(disponibles, preferido="", orden=(), excluir=()):
+        """Elige un modelo de chat entre los que la cuenta tiene disponibles."""
+        malos = ("whisper", "guard", "orpheus", "tts", "playai", "safeguard", "compound", "distil", "embed")
+        chat = [m for m in disponibles if m and not any(x in m.lower() for x in malos) and m not in excluir]
+        if not chat:
+            return None
+        if preferido and preferido != "auto" and preferido in chat:
+            return preferido
+        for candidato in orden:
+            if candidato in chat:
+                return candidato
+
+        def tamano(m):   # modelos nuevos que no conozco: el más grande ("120b" > "70b" > "8b")
+            n = [float(x) for x in re.findall(r"(\d+(?:\.\d+)?)b(?![a-z])", m.lower())]
+            return max(n) if n else 0.0
+        return sorted(chat, key=lambda m: (-tamano(m), m))[0]
 
     def preparar_nube(self):
-        """Activa Groq si hay una clave válida. Devuelve (ok, mensaje)."""
-        ok, msg = self.probar_groq(self.clave_groq())
-        if ok:
-            self.motor = "groq"
-            self.modelo = self.cfg.get("modelo_groq") or GROQ_PRINCIPAL
-            log.info("Cerebro en la nube listo: Groq %s", self.modelo)
-        return ok, msg
+        """Activa Groq si hay una clave válida y elige los mejores modelos disponibles. Devuelve (ok, mensaje)."""
+        lista, msg = self.modelos_groq(self.clave_groq())
+        if lista is None:
+            return False, msg
+        log.info("Modelos de Groq disponibles: %s", ", ".join(sorted(lista)))
+        self.groq_disponibles = lista
+        if not self._elegir_groq():
+            return False, "Tu cuenta de Groq no tiene modelos de chat disponibles"
+        self.motor = "groq"
+        log.info("Cerebro en la nube listo: Groq %s (respaldo %s)", self.groq_principal, self.groq_respaldo)
+        return True, msg
+
+    def _elegir_groq(self):
+        disp = getattr(self, "groq_disponibles", [])
+        self.groq_principal = self.elegir_modelo_groq(disp, self.cfg.get("modelo_groq", "auto"), GROQ_PREFERIDOS)
+        self.groq_respaldo = self.elegir_modelo_groq(disp, self.cfg.get("modelo_groq_respaldo", "auto"), GROQ_RAPIDOS,
+                                                     excluir=(self.groq_principal,)) or self.groq_principal
+        self.modelo = self.groq_principal
+        return self.groq_principal
 
     def _modelo_groq_actual(self):
         if time.time() < self.respaldo_hasta:
-            return self.cfg.get("modelo_groq_respaldo") or GROQ_RESPALDO
-        return self.cfg.get("modelo_groq") or GROQ_PRINCIPAL
+            return self.groq_respaldo
+        return self.groq_principal
+
+    def _cuerpo_groq(self, modelo, mensajes, json_mode=True, razonamiento=True):
+        cuerpo = {"model": modelo, "messages": mensajes, "temperature": float(self.cfg.get("temperatura", 0.4)),
+                  "max_tokens": 800}
+        if json_mode:
+            cuerpo["response_format"] = {"type": "json_object"}
+        if razonamiento and "gpt-oss" in modelo:
+            cuerpo["reasoning_effort"] = "low"      # que piense poco: respuestas rápidas y menos consumo
+        elif razonamiento and "qwen3" in modelo:
+            cuerpo["reasoning_effort"] = "none"
+        return cuerpo
 
     def _chat_groq(self, mensajes):
-        """Llama a Groq. Si el modelo principal llega a su límite, cambia solo al de respaldo."""
-        principal = self.cfg.get("modelo_groq") or GROQ_PRINCIPAL
-        respaldo = self.cfg.get("modelo_groq_respaldo") or GROQ_RESPALDO
+        """Llama a Groq. Si el modelo llega a su límite usa el de respaldo; si ya no existe, elige otro solo."""
         cabeceras = {"Authorization": f"Bearer {self.clave_groq()}"}
         modelo = self._modelo_groq_actual()
-        for intento in range(3):
-            cuerpo = {"model": modelo, "messages": mensajes, "temperature": float(self.cfg.get("temperatura", 0.4)),
-                      "max_tokens": 600, "response_format": {"type": "json_object"}}
+        json_mode, razonamiento = True, True
+        for intento in range(5):
+            cuerpo = self._cuerpo_groq(modelo, mensajes, json_mode, razonamiento)
             r = requests.post(GROQ + "/chat/completions", json=cuerpo, headers=cabeceras, timeout=30)
             if r.status_code == 200:
                 return r.json()["choices"][0]["message"]["content"]
+            detalle = r.text[:300]
+            if r.status_code != 429:
+                log.warning("Groq %s con %s: %s", r.status_code, modelo, detalle)
             if r.status_code == 429:
                 espera = _segundos(r.headers.get("retry-after"))
-                if modelo != respaldo:
-                    log.warning("Groq: %s llegó a su límite, uso %s por un rato", modelo, respaldo)
+                if modelo != self.groq_respaldo:
+                    log.warning("Groq: %s llegó a su límite, uso %s por un rato", modelo, self.groq_respaldo)
                     self.respaldo_hasta = time.time() + max(espera, 120)
-                    modelo = respaldo
+                    modelo = self.groq_respaldo
                     continue
                 if espera <= 8:
                     time.sleep(espera or 2)
                     continue
                 raise LimiteNube(espera)
-            if r.status_code == 400 and "json" in r.text.lower():
-                # el modelo devolvió algo que no es JSON: se pide sin modo JSON y se interpreta igual
-                cuerpo.pop("response_format")
-                r2 = requests.post(GROQ + "/chat/completions", json=cuerpo, headers=cabeceras, timeout=30)
-                if r2.status_code == 200:
-                    return r2.json()["choices"][0]["message"]["content"]
+            if r.status_code == 404 or "model_not_found" in detalle or "decommissioned" in detalle:
+                # ese modelo ya no existe para esta cuenta: se quita y se elige otro automáticamente
+                self.groq_disponibles = [m for m in getattr(self, "groq_disponibles", []) if m != modelo]
+                if self.cfg.get("modelo_groq") == modelo:
+                    self.cfg["modelo_groq"] = "auto"
+                if self.cfg.get("modelo_groq_respaldo") == modelo:
+                    self.cfg["modelo_groq_respaldo"] = "auto"
+                if not self._elegir_groq():
+                    raise ValueError("Groq no tiene modelos de chat disponibles")
+                log.warning("Cambio automático de modelo de Groq a %s", self.groq_principal)
+                modelo = self._modelo_groq_actual()
+                continue
+            if r.status_code == 400:
+                texto = detalle.lower()
+                if "reasoning" in texto and razonamiento:
+                    razonamiento = False
+                    continue
+                if ("json" in texto or "response_format" in texto) and json_mode:
+                    json_mode = False           # se pide sin modo JSON y se interpreta igual
+                    continue
+            if r.status_code in (401, 403):
+                raise ClaveInvalida()
+            if r.status_code >= 500 and intento < 4:
+                time.sleep(1.5)
+                continue
+            r.raise_for_status()
+        raise LimiteNube(60)
+
+    # ------------------------------------------------------------ nube (Gemini: respaldo y visión)
+    def clave_gemini(self):
+        return (self.cfg.get("gemini_api_key") or os.environ.get("GEMINI_API_KEY") or "").strip()
+
+    @staticmethod
+    def elegir_modelo_gemini(modelos, preferido=""):
+        """De la lista de modelos de la cuenta, elige el mejor Flash estable para chatear."""
+        nombres = {m.get("name", "").split("/")[-1] for m in modelos
+                   if "generateContent" in (m.get("supportedGenerationMethods") or [])}
+        if preferido and preferido in nombres:
+            return preferido
+        if "gemini-flash-latest" in nombres:
+            return "gemini-flash-latest"
+        malos = ("tts", "live", "image", "audio", "embedding", "thinking", "exp", "robotics", "native")
+
+        def version(n):
+            m = re.match(r"gemini-(\d+(?:\.\d+)?)-flash", n)
+            return float(m.group(1)) if m else 0.0
+        flash = [n for n in nombres if version(n) and not any(x in n for x in malos)]
+        for filtro in (lambda n: "lite" not in n and "preview" not in n,
+                       lambda n: "preview" not in n,
+                       lambda n: "lite" not in n,
+                       lambda n: True):
+            candidatos = [n for n in flash if filtro(n)]
+            if candidatos:
+                # versión más nueva; a igualdad, el nombre más corto (el "oficial", sin sufijos de fecha)
+                return sorted(candidatos, key=lambda n: (-version(n), len(n)))[0]
+        return None
+
+    def probar_gemini(self, clave):
+        """Comprueba una clave de Gemini. Devuelve (ok, mensaje, modelo)."""
+        clave = (clave or "").strip()
+        if not clave.startswith("AIza"):
+            return False, "Las claves de Gemini empiezan con AIza", None
+        try:
+            r = requests.get(GEMINI + "/models", params={"pageSize": 200}, headers={"x-goog-api-key": clave}, timeout=10)
+            if r.status_code == 200:
+                modelo = self.elegir_modelo_gemini(r.json().get("models", []), self.cfg.get("modelo_gemini", ""))
+                if modelo:
+                    return True, "Clave válida", modelo
+                return False, "Tu cuenta de Gemini no tiene modelos Flash disponibles", None
+            if r.status_code in (400, 401, 403):
+                return False, "Google rechazó la clave. Cópiala de nuevo", None
+            return False, f"Gemini respondió {r.status_code}. Intenta en un momento", None
+        except requests.RequestException:
+            return False, "Sin conexión con Gemini. Revisa tu internet", None
+
+    def preparar_gemini(self):
+        ok, msg, modelo = self.probar_gemini(self.clave_gemini())
+        if ok:
+            self.modelo_gemini = modelo
+            log.info("Gemini listo (respaldo y visión): %s", modelo)
+            if not self.modelo:          # sin Groq, Gemini pasa a ser el cerebro principal
+                self.motor, self.modelo = "gemini", modelo
+        return ok, msg
+
+    def _chat_gemini(self, mensajes, imagen_png=None):
+        if not self.modelo_gemini:
+            raise LimiteNube(60)
+        sistema = " ".join(m["content"] for m in mensajes if m["role"] == "system")
+        contenidos = []
+        for m in mensajes:
+            if m["role"] == "system":
+                continue
+            rol = "model" if m["role"] == "assistant" else "user"
+            if contenidos and contenidos[-1]["role"] == rol:
+                contenidos[-1]["parts"][0]["text"] += "\n" + m["content"]
+            else:
+                contenidos.append({"role": rol, "parts": [{"text": m["content"]}]})
+        if imagen_png:
+            contenidos[-1]["parts"].append({"inline_data": {"mime_type": "image/png",
+                                                            "data": base64.b64encode(open(imagen_png, "rb").read()).decode()}})
+        config = {"temperature": float(self.cfg.get("temperatura", 0.4)), "maxOutputTokens": 800}
+        if not imagen_png:
+            config["responseMimeType"] = "application/json"
+        modelo = self.modelo_gemini
+        if "2.5" in modelo:
+            config["thinkingConfig"] = {"thinkingBudget": 0}     # responder rápido, sin "pensar en voz baja"
+        elif re.match(r"gemini-[3-9]", modelo) or modelo.endswith("-latest"):
+            config["thinkingConfig"] = {"thinkingLevel": "low"}
+        cuerpo = {"contents": contenidos, "generationConfig": config}
+        if sistema:
+            cuerpo["systemInstruction"] = {"parts": [{"text": sistema}]}
+        url = f"{GEMINI}/models/{modelo}:generateContent"
+        cab = {"x-goog-api-key": self.clave_gemini()}
+        for intento in range(3):
+            r = requests.post(url, json=cuerpo, headers=cab, timeout=45)
+            if r.status_code == 200:
+                d = r.json()
+                partes = (d.get("candidates") or [{}])[0].get("content", {}).get("parts", [])
+                texto = "".join(p.get("text", "") for p in partes if not p.get("thought"))
+                if texto:
+                    return texto
+                raise ValueError(f"Gemini no devolvió texto: {str(d)[:200]}")
+            if r.status_code == 400 and "thinking" in r.text.lower() and "thinkingConfig" in config:
+                config.pop("thinkingConfig")          # este modelo no acepta ese ajuste: se reintenta sin él
+                continue
+            if r.status_code == 429:
+                raise LimiteNube(_segundos(r.headers.get("retry-after")) or 60)
             if r.status_code in (401, 403):
                 raise ClaveInvalida()
             if r.status_code >= 500 and intento < 2:
@@ -301,13 +479,13 @@ class Cerebro:
             contenido = ("RESULTADOS de las acciones (úsalos para responder ahora al usuario, de forma natural y breve; "
                          "no repitas la consulta):\n" + resultados)
             self.historial.append({"role": "user", "content": contenido})
-        nube = self.motor == "groq"
+        nube = self.motor in ("groq", "gemini")
         ejemplos = self.ejemplos_nube if nube else self.ejemplos
         previos = self.historial[-(9 if nube else 14):-1]
         mensajes = [{"role": "system", "content": self.sistema()}] + ejemplos + previos + [
             {"role": "user", "content": contenido}]
         try:
-            texto = self._chat_groq(mensajes) if nube else self._chat_ollama(mensajes)
+            texto = self._preguntar(mensajes)
             plan = interpretar(texto)
         except LimiteNube as e:
             minutos = max(1, round(e.segundos / 60))
@@ -315,7 +493,8 @@ class Cerebro:
                                  f"Vuelvo a estar al cien por ciento en unos {minutos} minutos; mientras tanto "
                                  "puedo abrir programas, controlar el volumen y la música.", "acciones": []}
         except ClaveInvalida:
-            plan = {"respuesta": f"Groq rechazó mi clave de acceso, {trato}. Revísela en mi configuración.", "acciones": []}
+            plan = {"respuesta": f"Mi clave de acceso fue rechazada, {trato}. Revísela con clic derecho en el reactor.",
+                    "acciones": []}
         except requests.ConnectionError:
             if nube:
                 plan = {"respuesta": f"No logro conectar con mi núcleo en la nube, {trato}. Revise su conexión a internet.",
@@ -332,6 +511,24 @@ class Cerebro:
         self.historial = self.historial[-30:]
         return plan
 
+    def _preguntar(self, mensajes):
+        """Groq (70B → 8B) y, si falla o se acaba el límite, Gemini. Sin Groq: Gemini u Ollama."""
+        if self.motor == "groq":
+            try:
+                texto = self._chat_groq(mensajes)
+                self.ultimo_motor = "groq"
+                return texto
+            except (LimiteNube, ClaveInvalida, requests.RequestException, ValueError, KeyError) as e:
+                if not self.modelo_gemini:
+                    raise
+                log.warning("Groq no disponible (%s): respondo con Gemini", e)
+        if self.motor in ("groq", "gemini"):
+            texto = self._chat_gemini(mensajes)
+            self.ultimo_motor = "gemini"
+            return texto
+        self.ultimo_motor = "ollama"
+        return self._chat_ollama(mensajes)
+
     def _chat_ollama(self, mensajes):
         cuerpo = {"model": self.modelo, "messages": mensajes, "format": "json", "stream": False,
                   "keep_alive": "60m",
@@ -343,9 +540,19 @@ class Cerebro:
         return r.json()["message"]["content"]
 
     def ver(self, imagen_png, pregunta):
-        """Analiza una imagen con el modelo de visión (si está instalado)."""
+        """Analiza una captura de pantalla: con Gemini (nube) o, si no hay, con moondream en Ollama."""
+        if self.modelo_gemini:
+            pedido = ("Describe en español lo que se ve en esta captura de la pantalla de mi computadora: programas, "
+                      "ventanas, textos y contenido importante. Sé concreto y breve.")
+            if pregunta:
+                pedido += " Luego responde esta pregunta: " + pregunta
+            try:
+                return self._chat_gemini([{"role": "user", "content": pedido}], imagen_png=imagen_png).strip()
+            except Exception as e:
+                log.error("Error de visión con Gemini: %s", e)
+                return None
         modelo = self.cfg.get("modelo_vision", "moondream")
-        if self.motor == "groq" and not self.en_linea():
+        if not self.en_linea():
             return None
         if not any(m.split(":")[0] == modelo.split(":")[0] for m in self.modelos_instalados()):
             return None
